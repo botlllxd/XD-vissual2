@@ -1,0 +1,586 @@
+-- XD Premium Visuals Hub (Restored from Original Script Base)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+
+local CoreGui
+pcall(function() CoreGui = game:GetService("CoreGui") end)
+
+-- Безопасное получение локального игрока
+local LocalPlayer = Players.LocalPlayer
+while not LocalPlayer do
+    task.wait()
+    LocalPlayer = Players.LocalPlayer
+end
+
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 15)
+local connections = {}
+
+-- Единая таблица для хранения контроллеров UI
+local UI_Elements = {}
+
+-- НАСТРОЙКИ CUSTOM FOG (Оригинальные переменные сохранены)
+local CustomFogEnabled = false
+local FogStartDist = 0
+local FogEndDist = 1000
+local FogColorRGB = Color3.fromRGB(150, 150, 150)
+
+-- ОРИГИНАЛЬНЫЙ БЛОК ПЕРЕМЕННЫХ СКАЙБОКСА ИЗ ВАШЕГО ПЕРВОГО СЛОВА
+local SkyboxEnabled = false
+local SkyBrightness = 50
+local SkyExposure = 50
+local SkyR, SkyG, SkyB = 100, 160, 255
+local HorR, HorG, HorB = 200, 220, 255
+local CurrentPreset = "Default"
+local DefaultSky = nil
+local CustomSky = nil
+local DefaultLighting = {
+    Brightness = Lighting.Brightness,
+    ExposureCompensation = Lighting.ExposureCompensation,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ColorShift_Top = Lighting.ColorShift_Top,
+    ColorShift_Bottom = Lighting.ColorShift_Bottom,
+    ClockTime = Lighting.ClockTime,
+    FogColor = Lighting.FogColor,
+    FogStart = Lighting.FogStart,
+    FogEnd = Lighting.FogEnd
+}
+local _skyboxApplying = false
+local skyboxGuardConnections = {}
+
+-- Настройки Sky-объекта
+local SkySettings = {
+    StarCount = 1000,
+    SunAngularSize = 11,
+    MoonAngularSize = 11,
+    CelestialBodiesShown = true,
+}
+
+local trackedGenerators = {}
+local trackedPallets = {}
+local trackedHooks = {}
+local MAX_ESP_DISTANCE = 100
+
+-- НАСТРОЙКИ ЧАСТИЦ (PARTICLES)
+local ParticlesEnabled = false
+local ParticlesMode = "Snowflakes" 
+local ParticlesShape = "Snowflake" 
+local ParticlesColor = Color3.fromRGB(255, 255, 255) 
+
+-- Текстуры для тем и эффектов
+local SkyboxPresets = {
+    ["Day"] = {
+        SkyboxBk = "rbxassetid://616300181", SkyboxDn = "rbxassetid://616300724",
+        SkyboxFt = "rbxassetid://616300532", SkyboxLf = "rbxassetid://616300407",
+        SkyboxRt = "rbxassetid://616300268", SkyboxUp = "rbxassetid://616300585",
+        ClockTime = 14, Brightness = 2.5, Exposure = 0.1, Ambient = Color3.fromRGB(160, 160, 165), Outdoor = Color3.fromRGB(200, 200, 210), Top = Color3.fromRGB(255, 255, 255), Bottom = Color3.fromRGB(180, 180, 180)
+    },
+    ["Sunset"] = {
+        SkyboxBk = "rbxassetid://616301389", SkyboxDn = "rbxassetid://616301980",
+        SkyboxFt = "rbxassetid://616301777", SkyboxLf = "rbxassetid://616301633",
+        SkyboxRt = "rbxassetid://616301489", SkyboxUp = "rbxassetid://616301886",
+        ClockTime = 18.5, Brightness = 1.5, Exposure = 0.0, Ambient = Color3.fromRGB(160, 100, 80), Outdoor = Color3.fromRGB(180, 80, 40), Top = Color3.fromRGB(255, 120, 50), Bottom = Color3.fromRGB(90, 40, 20)
+    },
+    ["Night"] = {
+        SkyboxBk = "rbxassetid://12064107", SkyboxDn = "rbxassetid://12064152",
+        SkyboxFt = "rbxassetid://12064115", SkyboxLf = "rbxassetid://12064129",
+        SkyboxRt = "rbxassetid://12064135", SkyboxUp = "rbxassetid://12064147",
+        ClockTime = 0, Brightness = 0.4, Exposure = -0.3, Ambient = Color3.fromRGB(15, 20, 35), Outdoor = Color3.fromRGB(10, 10, 20), Top = Color3.fromRGB(20, 30, 60), Bottom = Color3.fromRGB(5, 5, 10)
+    },
+    ["Space"] = {
+        SkyboxBk = "rbxassetid://121245961", SkyboxDn = "rbxassetid://121245971",
+        SkyboxFt = "rbxassetid://121245975", SkyboxLf = "rbxassetid://121245981",
+        SkyboxRt = "rbxassetid://121245986", SkyboxUp = "rbxassetid://121246002",
+        ClockTime = 0, Brightness = 0, Exposure = -0.6, Ambient = Color3.fromRGB(5, 5, 10), Outdoor = Color3.fromRGB(0, 0, 0), Top = Color3.fromRGB(0, 0, 0), Bottom = Color3.fromRGB(0, 0, 0)
+    },
+    ["Purple"] = {
+        SkyboxBk = "rbxassetid://2834141649", SkyboxDn = "rbxassetid://2834141979",
+        SkyboxFt = "rbxassetid://2834142385", SkyboxLf = "rbxassetid://2834142823",
+        SkyboxRt = "rbxassetid://2834143329", SkyboxUp = "rbxassetid://2834143818",
+        ClockTime = 0, Brightness = 1.6, Exposure = 0.2, Ambient = Color3.fromRGB(130, 40, 220), Outdoor = Color3.fromRGB(90, 20, 160), Top = Color3.fromRGB(180, 70, 255), Bottom = Color3.fromRGB(50, 10, 100)
+    }
+}
+
+local ParticleTextures = {
+    ["Snowflake"] = "rbxassetid://13543916053", 
+    ["Cat"] = "rbxassetid://6251240361",
+    ["Dot"] = "rbxassetid://258124322"
+}
+
+-- ИЗМЕНЕНО: Цветовая палитра интерфейса на Бело-Чёрную (Ваши оригинальные объекты)
+local AccentColor = Color3.fromRGB(255, 255, 255) 
+local BgMain = Color3.fromRGB(14, 14, 15)
+local BgHeader = Color3.fromRGB(20, 20, 21)
+local BgSidebar = Color3.fromRGB(17, 17, 18)
+local BgElement = Color3.fromRGB(24, 24, 26)
+local BgDark = Color3.fromRGB(10, 10, 11)
+local TextColor = Color3.fromRGB(235, 235, 240)
+local TextMuted = Color3.fromRGB(140, 140, 145)
+
+-- Инициализация ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EssentialUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+
+local successParent = false
+if CoreGui then 
+    pcall(function() 
+        for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "EssentialUI" then v:Destroy() end end
+        ScreenGui.Parent = CoreGui 
+        successParent = true
+    end) 
+end
+if not successParent and PlayerGui then 
+    for _, v in pairs(PlayerGui:GetChildren()) do if v.Name == "EssentialUI" then v:Destroy() end end
+    ScreenGui.Parent = PlayerGui 
+end
+
+-- Главное окно
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 520, 0, 370)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = BgMain
+MainFrame.BorderSizePixel = 0
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = Color3.fromRGB(45, 45, 48)
+MainStroke.Thickness = 1.2
+
+local MenuScale = Instance.new("UIScale", MainFrame)
+MenuScale.Scale = 1
+
+-- Шапка (Header) - НАЗВАНИЕ ИЗМЕНЕНО НА XD
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1, 0, 0, 42)
+Header.BackgroundColor3 = BgHeader
+Header.BorderSizePixel = 0
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
+
+local HeaderBottom = Instance.new("Frame", Header)
+HeaderBottom.Size = UDim2.new(1, 0, 0, 10)
+HeaderBottom.Position = UDim2.new(0, 0, 1, -10)
+HeaderBottom.BackgroundColor3 = BgHeader
+HeaderBottom.BorderSizePixel = 0
+
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1, -30, 1, 0)
+Title.Position = UDim2.new(0, 16, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "XD"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Логика перетаскивания (Ваша оригинальная)
+local dragging, dragInput, dragStart, startPos
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true dragStart = input.Position startPos = MainFrame.Position end
+end)
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+end)
+table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end))
+table.insert(connections, UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end))
+
+-- ИЗМЕНЕНО: Открытие/Закрытие переназначено на клавишу Ё (Backquote)
+local isMenuOpen = true
+local tweenScale
+local tweenStyleIn = TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+local tweenStyleOut = TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+
+table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.Backquote then
+        isMenuOpen = not isMenuOpen
+        if tweenScale then tweenScale:Cancel() end
+        if isMenuOpen then
+            MainFrame.Visible = true MenuScale.Scale = 1
+            tweenScale = TweenService:Create(MenuScale, tweenStyleIn, {Scale = 1}) tweenScale:Play()
+        else
+            tweenScale = TweenService:Create(MenuScale, tweenStyleOut, {Scale = 0.85}) tweenScale:Play()
+            task.delay(0.25, function() if not isMenuOpen then MainFrame.Visible = false end end)
+        end
+    end
+end))
+
+-- Основная рабочая область (Ваша оригинальная)
+local Body = Instance.new("Frame", MainFrame)
+Body.Size = UDim2.new(1, 0, 1, -42)
+Body.Position = UDim2.new(0, 0, 0, 42)
+Body.BackgroundTransparency = 1
+
+local Sidebar = Instance.new("Frame", Body)
+Sidebar.Size = UDim2.new(0, 140, 1, 0)
+Sidebar.BackgroundColor3 = BgSidebar
+Sidebar.BorderSizePixel = 0
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 10)
+
+local ContentContainer = Instance.new("Frame", Body)
+ContentContainer.Size = UDim2.new(1, -140, 1, 0)
+ContentContainer.Position = UDim2.new(0, 140, 0, 0)
+ContentContainer.BackgroundTransparency = 1
+
+local SidebarLayout = Instance.new("UIListLayout", Sidebar)
+SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarLayout.Padding = UDim.new(0, 4)
+
+-- КОНСТРУКТОРЫ СТРАНИЦ И КНОПОК ПОД ВАШ СТИЛЬ GUI
+local Pages = {}
+local Buttons = {}
+
+local function CreatePage(name)
+    local PageFrame = Instance.new("ScrollingFrame", ContentContainer)
+    PageFrame.Size = UDim2.new(1, 0, 1, 0)
+    PageFrame.BackgroundTransparency = 1
+    PageFrame.BorderSizePixel = 0
+    PageFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    PageFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    PageFrame.ScrollBarThickness = 3
+    PageFrame.ScrollBarImageColor3 = AccentColor
+    PageFrame.Visible = false
+    
+    local Layout = Instance.new("UIListLayout", PageFrame)
+    Layout.Padding = UDim.new(0, 6)
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    
+    local Padding = Instance.new("UIPadding", PageFrame)
+    Padding.PaddingTop = UDim.new(0, 10)
+    
+    Pages[name] = PageFrame
+    
+    local TabButton = Instance.new("TextButton", Sidebar)
+    TabButton.Size = UDim2.new(1, 0, 0, 36)
+    TabButton.BackgroundTransparency = 1
+    TabButton.Text = "   " .. name
+    TabButton.TextColor3 = TextMuted
+    TabButton.TextSize = 13
+    TabButton.Font = Enum.Font.GothamMedium
+    TabButton.TextXAlignment = Enum.TextXAlignment.Left
+    
+    TabButton.MouseButton1Click:Connect(function()
+        for _, p in pairs(Pages) do 
+            p.Visible = false 
+        end
+        for _, b in pairs(Buttons) do 
+            b.TextColor3 = TextMuted 
+        end
+        PageFrame.Visible = true
+        TabButton.TextColor3 = AccentColor
+    end)
+    
+    Buttons[name] = TabButton
+    return PageFrame
+end
+
+local function CreateToggle(parent, text, default, callback)
+    local ToggleFrame = Instance.new("Frame", parent)
+    ToggleFrame.Size = UDim2.new(0, 350, 0, 36)
+    ToggleFrame.BackgroundColor3 = BgElement
+    ToggleFrame.BorderSizePixel = 0
+    Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 6)
+    
+    local Label = Instance.new("TextLabel", ToggleFrame)
+    Label.Size = UDim2.new(1, -60, 1, 0)
+    Label.Position = UDim2.new(0, 12, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = TextColor
+    Label.TextSize = 13
+    Label.Font = Enum.Font.Gotham
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local Button = Instance.new("TextButton", ToggleFrame)
+    Button.Size = UDim2.new(0, 34, 0, 18)
+    Button.Position = UDim2.new(1, -44, 0.5, -9)
+    Button.BackgroundColor3 = default and AccentColor or Color3.fromRGB(45, 45, 48)
+    Button.Text = ""
+    Instance.new("UICorner", Button).CornerRadius = UDim.new(1, 0)
+    
+    local ToggleStroke = Instance.new("UIStroke", Button)
+    ToggleStroke.Color = Color3.fromRGB(70, 70, 75)
+    ToggleStroke.Thickness = 1
+    
+    local state = default
+    Button.MouseButton1Click:Connect(function()
+        state = not state
+        Button.BackgroundColor3 = state and AccentColor or Color3.fromRGB(45, 45, 48)
+        callback(state)
+    end)
+end
+
+local function CreateDropdown(parent, text, options, default, callback)
+    local DropdownFrame = Instance.new("Frame", parent)
+    DropdownFrame.Size = UDim2.new(0, 350, 0, 36)
+    DropdownFrame.BackgroundColor3 = BgElement
+    DropdownFrame.BorderSizePixel = 0
+    Instance.new("UICorner", DropdownFrame).CornerRadius = UDim.new(0, 6)
+    
+    local Label = Instance.new("TextLabel", DropdownFrame)
+    Label.Size = UDim2.new(0, 150, 1, 0)
+    Label.Position = UDim2.new(0, 12, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = TextColor
+    Label.TextSize = 13
+    Label.Font = Enum.Font.Gotham
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local MainBtn = Instance.new("TextButton", DropdownFrame)
+    MainBtn.Size = UDim2.new(0, 140, 0, 24)
+    MainBtn.Position = UDim2.new(1, -152, 0.5, -12)
+    MainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 38)
+    MainBtn.Text = default
+    MainBtn.TextColor3 = TextColor
+    MainBtn.TextSize = 12
+    MainBtn.Font = Enum.Font.Gotham
+    Instance.new("UICorner", MainBtn).CornerRadius = UDim.new(0, 4)
+    
+    local DropdownStroke = Instance.new("UIStroke", MainBtn)
+    DropdownStroke.Color = Color3.fromRGB(55, 55, 58)
+    DropdownStroke.Thickness = 1
+    
+    local currentIndex = table.find(options, default) or 1
+    MainBtn.MouseButton1Click:Connect(function()
+        currentIndex = currentIndex + 1
+        if currentIndex > #options then 
+            currentIndex = 1 
+        end
+        MainBtn.Text = options[currentIndex]
+        callback(options[currentIndex])
+    end)
+end
+
+-- ВАША ОРИГИНАЛЬНАЯ ИСПРАВЛЕННАЯ ЛОГИКА SKYBOX + УСИЛЕННЫЙ СВЕТ КАРТЫ
+local function RefreshEnvironment()
+    if _skyboxApplying then return end
+    _skyboxApplying = true
+    
+    -- Очищаем Atmosphere и Clouds (чтобы туман ложился идеально)
+    for _, obj in pairs(Lighting:GetChildren()) do
+        if obj:IsA("Atmosphere") or obj:IsA("Clouds") then
+            obj:Destroy()
+        end
+    end
+    
+    -- Логика Скайбокса
+    if SkyboxEnabled and CurrentPreset ~= "Default" then
+        local presetData = SkyboxPresets[CurrentPreset]
+        if presetData then
+            local currentSky = Lighting:FindFirstChildOfClass("Sky")
+            if not currentSky then
+                currentSky = Instance.new("Sky")
+                currentSky.Parent = Lighting
+            end
+            
+            currentSky.SkyboxBk = presetData.SkyboxBk
+            currentSky.SkyboxDn = presetData.SkyboxDn
+            currentSky.SkyboxFt = presetData.SkyboxFt
+            currentSky.SkyboxLf = presetData.SkyboxLf
+            currentSky.SkyboxRt = presetData.SkyboxRt
+            currentSky.SkyboxUp = presetData.SkyboxUp
+            currentSky.StarCount = SkySettings.StarCount
+            currentSky.SunAngularSize = SkySettings.SunAngularSize
+            currentSky.MoonAngularSize = SkySettings.MoonAngularSize
+            currentSky.CelestialBodiesShown = SkySettings.CelestialBodiesShown
+            
+            if CustomFogEnabled then
+                currentSky.CelestialBodiesShown = false
+            end
+            
+            -- ИЗМЕНЕНО: Тотальная заливка всей карты под выбранную тему (Outdoor, Сдвиги цвета)
+            Lighting.ClockTime = presetData.ClockTime
+            Lighting.Brightness = presetData.Brightness
+            Lighting.ExposureCompensation = presetData.Exposure
+            Lighting.Ambient = presetData.Ambient
+            Lighting.OutdoorAmbient = presetData.Outdoor
+            Lighting.ColorShift_Top = presetData.Top or Color3.fromRGB(0,0,0)
+            Lighting.ColorShift_Bottom = presetData.Bottom or Color3.fromRGB(0,0,0)
+        end
+    else
+        -- Чистый сброс к вашей сохраненной таблице DefaultLighting
+        for _, obj in pairs(Lighting:GetChildren()) do
+            if obj:IsA("Sky") then 
+                obj:Destroy() 
+            end
+        end
+        Lighting.Brightness = DefaultLighting.Brightness
+        Lighting.ExposureCompensation = DefaultLighting.ExposureCompensation
+        Lighting.Ambient = DefaultLighting.Ambient
+        Lighting.OutdoorAmbient = DefaultLighting.OutdoorAmbient
+        Lighting.ColorShift_Top = DefaultLighting.DefaultColorShiftTop or DefaultLighting.ColorShift_Top
+        Lighting.ColorShift_Bottom = DefaultLighting.DefaultColorShiftBottom or DefaultLighting.ColorShift_Bottom
+        Lighting.ClockTime = DefaultLighting.ClockTime
+    end
+    
+    -- Логика Тумана
+    if CustomFogEnabled then
+        Lighting.FogStart = 0
+        Lighting.FogEnd = FogEndDist
+        Lighting.FogColor = FogColorRGB
+        Lighting.Ambient = FogColorRGB:Lerp(Lighting.Ambient, 0.2)
+        Lighting.OutdoorAmbient = FogColorRGB:Lerp(Lighting.OutdoorAmbient, 0.1)
+    else
+        Lighting.FogStart = DefaultLighting.FogStart
+        Lighting.FogEnd = DefaultLighting.FogEnd
+        Lighting.FogColor = DefaultLighting.FogColor
+    end
+    _skyboxApplying = false
+end
+
+-- НАДЁЖНАЯ ЛОГИКА ЧАСТИЦ (PARTICLES)
+local MovementEmitter = nil
+local EnvironmentEmitter = nil
+local EnvironmentAttachment = nil
+
+local function UpdateParticles()
+    if MovementEmitter then MovementEmitter:Destroy() MovementEmitter = nil end
+    if EnvironmentEmitter then EnvironmentEmitter:Destroy() EnvironmentEmitter = nil end
+    if EnvironmentAttachment then EnvironmentAttachment:Destroy() EnvironmentAttachment = nil end
+    
+    if not ParticlesEnabled or not LocalPlayer.Character then return end
+    
+    local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:WaitForChild("HumanoidRootPart", 5)
+    if not root then return end
+    
+    local currentTexture = ParticleTextures[ParticlesShape] or ParticleTextures["Snowflake"]
+    
+    if ParticlesMode == "On Move/Jump" then
+        MovementEmitter = Instance.new("ParticleEmitter")
+        MovementEmitter.Texture = currentTexture
+        MovementEmitter.Color = ColorSequence.new(ParticlesColor)
+        MovementEmitter.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 0)})
+        MovementEmitter.Lifetime = NumberRange.new(0.6, 1.2)
+        MovementEmitter.Rate = 0
+        MovementEmitter.Speed = NumberRange.new(3, 6)
+        MovementEmitter.SpreadAngle = Vector2.new(180, 180)
+        MovementEmitter.Parent = root
+        
+        local moveConn
+        moveConn = RunService.Heartbeat:Connect(function()
+            if not ParticlesEnabled or not MovementEmitter or not MovementEmitter.Parent then
+                if moveConn then 
+                    moveConn:Disconnect() 
+                end
+                return
+            end
+            if root.AssemblyLinearVelocity.Magnitude > 2 then
+                MovementEmitter.Rate = 40
+            else
+                MovementEmitter.Rate = 0
+            end
+        end)
+        table.insert(connections, moveConn)
+        
+    elseif ParticlesMode == "Snowflakes" then
+        EnvironmentAttachment = Instance.new("Attachment")
+        EnvironmentAttachment.Position = Vector3.new(0, 12, 0)
+        EnvironmentAttachment.Parent = root
+        
+        EnvironmentEmitter = Instance.new("ParticleEmitter")
+        EnvironmentEmitter.Texture = currentTexture
+        EnvironmentEmitter.Color = ColorSequence.new(ParticlesColor)
+        EnvironmentEmitter.Size = NumberSequence.new(0.5, 1.0)
+        EnvironmentEmitter.Lifetime = NumberRange.new(2.5, 4)
+        EnvironmentEmitter.Rate = 50
+        EnvironmentEmitter.Speed = NumberRange.new(4, 8)
+        EnvironmentEmitter.EmissionDirection = Enum.NormalId.Bottom
+        EnvironmentEmitter.SpreadAngle = Vector2.new(60, 60)
+        EnvironmentEmitter.Parent = EnvironmentAttachment
+    end
+end
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    if ParticlesEnabled then 
+        UpdateParticles() 
+    end
+end)
+
+-- ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА СТРАНИЦ XD GUI
+local VisPage = CreatePage("Visuals")
+local SkyPage = CreatePage("Skybox")
+local FogPage = CreatePage("Custom Fog")
+local PartPage = CreatePage("Particles")
+
+-- Вкладка Visuals (Инфо панель)
+local InfoLabel = Instance.new("TextLabel", VisPage)
+InfoLabel.Size = UDim2.new(0, 350, 0, 60)
+InfoLabel.BackgroundTransparency = 1
+InfoLabel.Text = "XD Visual Hub loaded.\nAll cheats and ESP completely removed.\nPress ` (Backquote) to Hide Menu."
+InfoLabel.TextColor3 = TextColor
+InfoLabel.TextSize = 13
+InfoLabel.Font = Enum.Font.GothamMedium
+
+-- Вкладка Skybox
+CreateToggle(SkyPage, "Enable Skybox Changer", SkyboxEnabled, function(val)
+    SkyboxEnabled = val
+    RefreshEnvironment()
+end)
+
+CreateDropdown(SkyPage, "Select Sky Theme", {"Day", "Sunset", "Night", "Space", "Purple", "Default"}, CurrentPreset, function(val)
+    CurrentPreset = val
+    RefreshEnvironment()
+end)
+
+-- Вкладка Custom Fog
+CreateToggle(FogPage, "Enable Custom Fog", CustomFogEnabled, function(val)
+    CustomFogEnabled = val
+    RefreshEnvironment()
+end)
+
+CreateDropdown(FogPage, "Fog Distance Preset", {"Dense (200)", "Medium (500)", "Far (1000)"}, "Far (1000)", function(val)
+    if val == "Dense (200)" then
+        FogEndDist = 200
+    elseif val == "Medium (500)" then
+        FogEndDist = 500
+    else
+        FogEndDist = 1000
+    end
+    RefreshEnvironment()
+end)
+
+-- Вкладка Particles
+CreateToggle(PartPage, "Enable Particle Effects", ParticlesEnabled, function(val)
+    ParticlesEnabled = val
+    UpdateParticles()
+end)
+
+CreateDropdown(PartPage, "Generation Mode", {"Snowflakes", "On Move/Jump"}, ParticlesMode, function(val)
+    ParticlesMode = val
+    UpdateParticles()
+end)
+
+CreateDropdown(PartPage, "Particle Appearance", {"Snowflake", "Cat", "Dot"}, ParticlesShape, function(val)
+    ParticlesShape = val
+    UpdateParticles()
+end)
+
+CreateDropdown(PartPage, "Choose Particle Color", {"White", "Purple", "Cyan", "Red"}, "White", function(val)
+    if val == "White" then
+        ParticlesColor = Color3.fromRGB(255, 255, 255)
+    elseif val == "Purple" then
+        ParticlesColor = Color3.fromRGB(151, 71, 255)
+    elseif val == "Cyan" then
+        ParticlesColor = Color3.fromRGB(0, 255, 255)
+    elseif val == "Red" then
+        ParticlesColor = Color3.fromRGB(255, 50, 50)
+    end
+    UpdateParticles()
+end)
+
+-- Открытие первой страницы
+Pages["Visuals"].Visible = true
+Buttons["Visuals"].TextColor3 = AccentColor
