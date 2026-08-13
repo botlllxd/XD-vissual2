@@ -1,0 +1,1190 @@
+-- XD Premium Visuals Hub v2.4 (без конфигов и хаба)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local HttpService = game:GetService("HttpService")
+local CoreGui
+pcall(function() CoreGui = game:GetService("CoreGui") end)
+
+local LocalPlayer = Players.LocalPlayer
+while not LocalPlayer do task.wait() LocalPlayer = Players.LocalPlayer end
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 15)
+
+-- ====== SCREEN GUI ======
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "XDUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local successParent = false
+if CoreGui then
+    pcall(function()
+        for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "XDUI" then v:Destroy() end end
+        ScreenGui.Parent = CoreGui
+        successParent = true
+    end)
+end
+if not successParent and PlayerGui then
+    for _, v in pairs(PlayerGui:GetChildren()) do if v.Name == "XDUI" then v:Destroy() end end
+    ScreenGui.Parent = PlayerGui
+end
+
+-- ====== СОХРАНЕНИЕ (только автоматическое) ======
+local SaveKey = "XD_Visuals_Settings"
+local function SaveSettings(data)
+    pcall(function()
+        local json = HttpService:JSONEncode(data)
+        ScreenGui:SetAttribute(SaveKey, json)
+    end)
+end
+local function LoadSettings()
+    local json = ScreenGui:GetAttribute(SaveKey)
+    if json and json ~= "" then
+        local success, result = pcall(function() return HttpService:JSONDecode(json) end)
+        if success and type(result) == "table" then return result end
+    end
+    return nil
+end
+
+-- ====== НАСТРОЙКИ ======
+local connections = {}
+local UI_Elements = {}
+local ThemeElements = { Gradients = {}, Texts = {}, MainStrokes = {}, DarkStrokes = {}, Scrollbars = {} }
+
+local Settings = {
+    -- UI
+    AccentR = 255, AccentG = 255, AccentB = 255,
+    GradientEnabled = false,
+    SecondR = 0, SecondG = 0, SecondB = 0,
+    -- Визуалы
+    CustomFogEnabled = false, FogEndDist = 1000, FogColorRGB = Color3.fromRGB(150,150,150),
+    SkyboxEnabled = false, CurrentPreset = "Day",
+    WorldTimeLock = false, WorldTimeValue = 14, WorldBrightness = 2.5, WorldExposure = 0,
+    ManualColorsEnabled = false, SkyR = 100, SkyG = 160, SkyB = 255, HorR = 200, HorG = 220, HorB = 255,
+    WingsEnabled = false, WingsColor = Color3.fromRGB(255,255,255),
+    FootprintsEnabled = false, FootprintColor = Color3.fromRGB(255,255,255), FootprintShape = "Circle", FootprintDensity = 0.2, FootprintLifetime = 1.0,
+    BloomEnabled = false, BloomIntensity = 1, BloomSize = 24, BloomThreshold = 0.9,
+    ColorCorrectionEnabled = false, CCBrightness = 0, CCContrast = 0, CCSaturation = 0,
+    SunRaysEnabled = false, SunRaysIntensity = 0.1, SunRaysSpread = 0.5,
+    RTXEnabled = false,
+    AutoTimeCycleEnabled = false, TimeCycleSpeed = 1.0,
+    ShadowsEnabled = true,
+    FOVEnabled = false, FOV = 70,
+    StretchEnabled = false, StretchPreset = "16:9 (Default)", StretchCustom = 100
+}
+
+-- Загрузка сохранений
+local saved = LoadSettings()
+if saved then
+    for key, val in pairs(saved) do
+        if Settings[key] ~= nil then
+            if type(val) == "table" and val.R and val.G and val.B then
+                Settings[key] = Color3.new(val.R, val.G, val.B)
+            else
+                Settings[key] = val
+            end
+        end
+    end
+end
+
+-- Локальные переменные
+local CustomFogEnabled = Settings.CustomFogEnabled; local FogEndDist = Settings.FogEndDist; local FogColorRGB = Settings.FogColorRGB
+local SkyboxEnabled = Settings.SkyboxEnabled; local CurrentPreset = Settings.CurrentPreset
+local WorldTimeLock = Settings.WorldTimeLock; local WorldTimeValue = Settings.WorldTimeValue
+local WorldBrightness = Settings.WorldBrightness; local WorldExposure = Settings.WorldExposure
+local ManualColorsEnabled = Settings.ManualColorsEnabled
+local SkyR, SkyG, SkyB = Settings.SkyR, Settings.SkyG, Settings.SkyB
+local HorR, HorG, HorB = Settings.HorR, Settings.HorG, Settings.HorB
+local WingsEnabled = Settings.WingsEnabled; local WingsColor = Settings.WingsColor
+local FootprintsEnabled = Settings.FootprintsEnabled; local FootprintColor = Settings.FootprintColor
+local FootprintShape = Settings.FootprintShape; local FootprintDensity = Settings.FootprintDensity; local FootprintLifetime = Settings.FootprintLifetime
+local BloomEnabled = Settings.BloomEnabled; local BloomIntensity = Settings.BloomIntensity; local BloomSize = Settings.BloomSize; local BloomThreshold = Settings.BloomThreshold
+local ColorCorrectionEnabled = Settings.ColorCorrectionEnabled; local CCBrightness = Settings.CCBrightness; local CCContrast = Settings.CCContrast; local CCSaturation = Settings.CCSaturation
+local SunRaysEnabled = Settings.SunRaysEnabled; local SunRaysIntensity = Settings.SunRaysIntensity; local SunRaysSpread = Settings.SunRaysSpread
+local RTXEnabled = Settings.RTXEnabled
+local AutoTimeCycleEnabled = Settings.AutoTimeCycleEnabled; local TimeCycleSpeed = Settings.TimeCycleSpeed
+local ShadowsEnabled = Settings.ShadowsEnabled
+local FOVEnabled = Settings.FOVEnabled; local FOV = Settings.FOV
+local StretchEnabled = Settings.StretchEnabled; local StretchPreset = Settings.StretchPreset; local StretchCustom = Settings.StretchCustom
+
+-- ====== ORIGINAL LIGHTING DEFAULTS ======
+local DefaultLighting = {
+    Brightness = Lighting.Brightness, ExposureCompensation = Lighting.ExposureCompensation,
+    Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient,
+    ColorShift_Top = Lighting.ColorShift_Top, ColorShift_Bottom = Lighting.ColorShift_Bottom,
+    ClockTime = Lighting.ClockTime, FogColor = Lighting.FogColor, FogStart = Lighting.FogStart, FogEnd = Lighting.FogEnd,
+    GlobalShadows = Lighting.GlobalShadows
+}
+
+-- ====== SKYBOX TEXTURES ======
+local SkyboxPresets = {
+    ["Day"] = {
+        SkyboxBk = "rbxassetid://616300181", SkyboxDn = "rbxassetid://616300724",
+        SkyboxFt = "rbxassetid://616300532", SkyboxLf = "rbxassetid://616300407",
+        SkyboxRt = "rbxassetid://616300268", SkyboxUp = "rbxassetid://616300585",
+        ClockTime = 14, Brightness = 2.5, Exposure = 0.1,
+        Ambient = Color3.fromRGB(160,160,165), Outdoor = Color3.fromRGB(200,200,210),
+        Top = Color3.fromRGB(255,255,255), Bottom = Color3.fromRGB(180,180,180)
+    },
+    ["Sunset"] = {
+        SkyboxBk = "rbxassetid://616301389", SkyboxDn = "rbxassetid://616301980",
+        SkyboxFt = "rbxassetid://616301777", SkyboxLf = "rbxassetid://616301633",
+        SkyboxRt = "rbxassetid://616301489", SkyboxUp = "rbxassetid://616301886",
+        ClockTime = 18.5, Brightness = 1.5, Exposure = 0.0,
+        Ambient = Color3.fromRGB(160,100,80), Outdoor = Color3.fromRGB(180,80,40),
+        Top = Color3.fromRGB(255,120,50), Bottom = Color3.fromRGB(90,40,20)
+    },
+    ["Night"] = {
+        SkyboxBk = "rbxassetid://12064107", SkyboxDn = "rbxassetid://12064152",
+        SkyboxFt = "rbxassetid://12064115", SkyboxLf = "rbxassetid://12064129",
+        SkyboxRt = "rbxassetid://12064135", SkyboxUp = "rbxassetid://12064147",
+        ClockTime = 0, Brightness = 0.4, Exposure = -0.3,
+        Ambient = Color3.fromRGB(15,20,35), Outdoor = Color3.fromRGB(10,10,20),
+        Top = Color3.fromRGB(20,30,60), Bottom = Color3.fromRGB(5,5,10)
+    },
+    ["Space"] = {
+        SkyboxBk = "rbxassetid://121245961", SkyboxDn = "rbxassetid://121245971",
+        SkyboxFt = "rbxassetid://121245975", SkyboxLf = "rbxassetid://121245981",
+        SkyboxRt = "rbxassetid://121245986", SkyboxUp = "rbxassetid://121246002",
+        ClockTime = 0, Brightness = 0, Exposure = -0.6,
+        Ambient = Color3.fromRGB(5,5,10), Outdoor = Color3.fromRGB(0,0,0),
+        Top = Color3.fromRGB(0,0,0), Bottom = Color3.fromRGB(0,0,0)
+    },
+    ["Purple"] = {
+        SkyboxBk = "rbxassetid://2834141649", SkyboxDn = "rbxassetid://2834141979",
+        SkyboxFt = "rbxassetid://2834142385", SkyboxLf = "rbxassetid://2834142823",
+        SkyboxRt = "rbxassetid://2834143329", SkyboxUp = "rbxassetid://2834143818",
+        ClockTime = 0, Brightness = 1.6, Exposure = 0.2,
+        Ambient = Color3.fromRGB(130,40,220), Outdoor = Color3.fromRGB(90,20,160),
+        Top = Color3.fromRGB(180,70,255), Bottom = Color3.fromRGB(50,10,100)
+    }
+}
+
+-- ====== ЦВЕТА UI ======
+local BgMain = Color3.fromRGB(10, 10, 10)
+local BgHeader = Color3.fromRGB(16, 16, 16)
+local BgSidebar = Color3.fromRGB(14, 14, 14)
+local BgElement = Color3.fromRGB(20, 20, 20)
+local BgDark = Color3.fromRGB(4, 4, 4)
+local TextColor = Color3.fromRGB(245, 245, 245)
+local TextMuted = Color3.fromRGB(130, 130, 130)
+
+-- ====== ГЛАВНОЕ ОКНО ======
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.AnchorPoint = Vector2.new(0.5, 1)
+MainFrame.Position = UDim2.new(0.5, 0, 1, -15)
+MainFrame.Size = UDim2.new(0, 200, 0, 45)
+MainFrame.BackgroundColor3 = BgMain
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Thickness = 1.5
+table.insert(ThemeElements.MainStrokes, MainStroke)
+local MainUIScale = Instance.new("UIScale", MainFrame)
+MainUIScale.Scale = 1
+
+-- Шапка
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundColor3 = BgHeader
+Header.BorderSizePixel = 0
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
+local HeaderBottom = Instance.new("Frame", Header)
+HeaderBottom.Size = UDim2.new(1, 0, 0, 12)
+HeaderBottom.Position = UDim2.new(0, 0, 1, -12)
+HeaderBottom.BackgroundColor3 = BgHeader
+HeaderBottom.BorderSizePixel = 0
+HeaderBottom.Visible = false
+local HeaderBottomStroke = Instance.new("Frame", HeaderBottom)
+HeaderBottomStroke.Size = UDim2.new(1, 0, 0, 1)
+HeaderBottomStroke.Position = UDim2.new(0, 0, 1, 0)
+HeaderBottomStroke.BorderSizePixel = 0
+table.insert(ThemeElements.DarkStrokes, HeaderBottomStroke)
+
+-- Заголовок
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1, -80, 1, 0)
+Title.Position = UDim2.new(0, 16, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "♥ XD v2.4"
+Title.TextColor3 = Color3.fromRGB(255,255,255)
+Title.TextSize = 16
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.TextYAlignment = Enum.TextYAlignment.Center
+local TitleGrad = Instance.new("UIGradient", Title)
+TitleGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255,200,255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,255,255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(200,255,255))
+})
+table.insert(ThemeElements.Gradients, TitleGrad)
+
+-- Шестерёнка
+local GearBtn = Instance.new("ImageButton", Header)
+GearBtn.Size = UDim2.new(0, 20, 0, 20)
+GearBtn.Position = UDim2.new(1, -32, 0.5, -10)
+GearBtn.BackgroundTransparency = 1
+GearBtn.Image = "rbxassetid://7059346373"
+GearBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+GearBtn.Visible = false
+
+-- ====== ТЕЛО ======
+local Body = Instance.new("Frame", MainFrame)
+Body.Size = UDim2.new(1, 0, 1, -45)
+Body.Position = UDim2.new(0, 0, 0, 45)
+Body.BackgroundTransparency = 1
+Body.Visible = false
+
+-- Боковая панель
+local Sidebar = Instance.new("Frame", Body)
+Sidebar.Size = UDim2.new(0, 140, 1, 0)
+Sidebar.BackgroundColor3 = BgSidebar
+Sidebar.BorderSizePixel = 0
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 10)
+
+-- Контейнер для страниц
+local ContentContainer = Instance.new("Frame", Body)
+ContentContainer.Size = UDim2.new(1, -140, 1, 0)
+ContentContainer.Position = UDim2.new(0, 140, 0, 0)
+ContentContainer.BackgroundTransparency = 1
+
+local SidebarLayout = Instance.new("UIListLayout", Sidebar)
+SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarLayout.Padding = UDim.new(0, 2)
+
+-- ====== ОВЕРЛЕЙ НАСТРОЕК UI (шестерёнка) ======
+local SettingsOverlay = Instance.new("ScrollingFrame", Body)
+SettingsOverlay.Size = UDim2.new(1, 0, 1, 0)
+SettingsOverlay.Position = UDim2.new(0, 0, 0, 0)
+SettingsOverlay.BackgroundTransparency = 1
+SettingsOverlay.BorderSizePixel = 0
+SettingsOverlay.ScrollBarThickness = 4
+SettingsOverlay.Visible = false
+SettingsOverlay.ZIndex = 10
+table.insert(ThemeElements.Scrollbars, SettingsOverlay)
+
+local soLayout = Instance.new("UIListLayout", SettingsOverlay)
+soLayout.SortOrder = Enum.SortOrder.LayoutOrder
+soLayout.Padding = UDim.new(0, 10)
+local soPadding = Instance.new("UIPadding", SettingsOverlay)
+soPadding.PaddingTop = UDim.new(0, 15)
+soPadding.PaddingLeft = UDim.new(0, 15)
+soPadding.PaddingRight = UDim.new(0, 15)
+soPadding.PaddingBottom = UDim.new(0, 15)
+soLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    SettingsOverlay.CanvasSize = UDim2.new(0, 0, 0, soLayout.AbsoluteContentSize.Y + 30)
+end)
+
+-- Переключение оверлея
+GearBtn.MouseButton1Click:Connect(function()
+    if not Body.Visible then return end
+    SettingsOverlay.Visible = not SettingsOverlay.Visible
+    Sidebar.Visible = not SettingsOverlay.Visible
+    ContentContainer.Visible = not SettingsOverlay.Visible
+end)
+
+-- ====== АНИМАЦИЯ ОКНА ======
+local isMenuOpen = false
+local function ToggleMenu()
+    isMenuOpen = not isMenuOpen
+    if isMenuOpen then
+        MainFrame.Visible = true
+        Body.Visible = true
+        HeaderBottom.Visible = true
+        GearBtn.Visible = true
+        SettingsOverlay.Visible = false
+        Sidebar.Visible = true
+        ContentContainer.Visible = true
+        TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 560, 0, 420),
+            Position = UDim2.new(0.5, 0, 0.5, 210)
+        }):Play()
+    else
+        GearBtn.Visible = false
+        TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 200, 0, 45),
+            Position = UDim2.new(0.5, 0, 1, -15)
+        }):Play()
+        task.delay(0.2, function()
+            if not isMenuOpen then
+                Body.Visible = false
+                HeaderBottom.Visible = false
+            end
+        end)
+    end
+end
+
+-- Перетаскивание (всегда)
+local dragging, dragInput, dragStartPos, dragStartFramePos
+local touchStartTime = 0
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragStartPos = input.Position
+        touchStartTime = os.clock()
+        dragging = true
+        dragStartFramePos = MainFrame.Position
+    end
+end)
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+Header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+        if dragStartPos and (input.Position - dragStartPos).Magnitude < 15 and (os.clock() - touchStartTime) < 0.3 then
+            ToggleMenu()
+        end
+    end
+end)
+table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStartPos
+        MainFrame.Position = UDim2.new(
+            dragStartFramePos.X.Scale, dragStartFramePos.X.Offset + delta.X,
+            dragStartFramePos.Y.Scale, dragStartFramePos.Y.Offset + delta.Y
+        )
+    end
+end))
+table.insert(connections, UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end))
+
+-- Открытие по RightShift и F1
+table.insert(connections, UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.F1 then
+        ToggleMenu()
+    end
+end))
+
+-- ====== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ UI ======
+local function CreateLabel(parent, text)
+    local label = Instance.new("TextLabel", parent)
+    label.Size = UDim2.new(0, 350, 0, 20)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = TextMuted
+    label.TextSize = 12
+    label.Font = Enum.Font.GothamSemibold
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    return label
+end
+
+local function CreateSlider(parent, text, min, max, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(0, 350, 0, 54)
+    frame.BackgroundColor3 = BgElement
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Thickness = 1
+    table.insert(ThemeElements.DarkStrokes, stroke)
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, -20, 0, 24)
+    label.Position = UDim2.new(0, 12, 0, 5)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = TextColor
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamSemibold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    local valLabel = Instance.new("TextLabel", frame)
+    valLabel.Size = UDim2.new(0, 38, 0, 18)
+    valLabel.Position = UDim2.new(1, -50, 0, 8)
+    valLabel.BackgroundColor3 = BgDark
+    valLabel.Text = tostring(default)
+    valLabel.TextSize = 11
+    valLabel.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", valLabel).CornerRadius = UDim.new(0, 4)
+    table.insert(ThemeElements.Texts, valLabel)
+    local bar = Instance.new("Frame", frame)
+    bar.Size = UDim2.new(1, -24, 0, 6)
+    bar.Position = UDim2.new(0, 12, 0, 38)
+    bar.BackgroundColor3 = BgDark
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+    local fill = Instance.new("Frame", bar)
+    fill.Size = UDim2.new((default - min)/(max - min), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+    local fillGrad = Instance.new("UIGradient", fill)
+    table.insert(ThemeElements.Gradients, fillGrad)
+    local btn = Instance.new("TextButton", bar)
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    local dragging = false
+    local touchID = nil
+    local function setVal(val)
+        valLabel.Text = tostring(val)
+        fill.Size = UDim2.new((val - min)/(max - min), 0, 1, 0)
+        callback(val)
+    end
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            touchID = input
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input == touchID or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+            touchID = nil
+        end
+    end)
+    table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input == touchID or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            local mouseX = input.Position.X
+            local barX = bar.AbsolutePosition.X
+            local barSize = bar.AbsoluteSize.X
+            local percent = math.clamp((mouseX - barX) / barSize, 0, 1)
+            setVal(math.floor(min + (max - min) * percent))
+        end
+    end))
+    return setVal
+end
+
+local function CreateButton(parent, text, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(0, 350, 0, 38)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", btn)
+    table.insert(ThemeElements.DarkStrokes, stroke)
+    btn.BackgroundColor3 = BgElement
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local function CreateToggle(parent, text, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(0, 350, 0, 42)
+    frame.BackgroundColor3 = BgElement
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Thickness = 1
+    table.insert(ThemeElements.DarkStrokes, stroke)
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, -70, 1, 0)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = TextColor
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamSemibold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0, 40, 0, 20)
+    btn.Position = UDim2.new(1, -52, 0.5, -10)
+    btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = ""
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+    local grad = Instance.new("UIGradient", btn)
+    table.insert(ThemeElements.Gradients, grad)
+    grad.Enabled = default
+    if not default then btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55) end
+    local circle = Instance.new("Frame", btn)
+    circle.Size = UDim2.new(0, 14, 0, 14)
+    circle.Position = UDim2.new(0, default and 23 or 3, 0.5, -7)
+    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+    local state = default
+    local function setState(newState)
+        state = newState
+        local circlePos = state and UDim2.new(0, 23, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+        if state then
+            btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            grad.Enabled = true
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+            grad.Enabled = false
+        end
+        TweenService:Create(circle, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = circlePos}):Play()
+        callback(state)
+    end
+    btn.MouseButton1Click:Connect(function() setState(not state) end)
+    return setState
+end
+
+local function CreateDropdown(parent, text, options, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(0, 350, 0, 42)
+    frame.BackgroundColor3 = BgElement
+    frame.ClipsDescendants = true
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", frame)
+    table.insert(ThemeElements.DarkStrokes, stroke)
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(0, 150, 0, 42)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = TextColor
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamSemibold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    local selector = Instance.new("TextButton", frame)
+    selector.Size = UDim2.new(0, 130, 0, 26)
+    selector.Position = UDim2.new(1, -142, 0, 8)
+    selector.BackgroundColor3 = BgDark
+    selector.Text = "   " .. tostring(default)
+    selector.TextSize = 12
+    selector.Font = Enum.Font.GothamBold
+    selector.TextXAlignment = Enum.TextXAlignment.Left
+    Instance.new("UICorner", selector).CornerRadius = UDim.new(0, 6)
+    table.insert(ThemeElements.Texts, selector)
+    local arrow = Instance.new("TextLabel", selector)
+    arrow.Size = UDim2.new(0, 20, 1, 0)
+    arrow.Position = UDim2.new(1, -22, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = TextMuted
+    arrow.TextSize = 10
+    arrow.Font = Enum.Font.GothamBold
+    local optionHolder = Instance.new("Frame", frame)
+    optionHolder.Position = UDim2.new(0, 12, 0, 42)
+    optionHolder.Size = UDim2.new(1, -24, 0, 0)
+    optionHolder.BackgroundTransparency = 1
+    local optLayout = Instance.new("UIListLayout", optionHolder)
+    optLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    optLayout.Padding = UDim.new(0, 4)
+    local isOpen = false
+    local currentValue = default
+    local function setValue(val)
+        currentValue = val
+        selector.Text = "   " .. tostring(val)
+        callback(val)
+    end
+    for _, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton", optionHolder)
+        optBtn.Size = UDim2.new(1, 0, 0, 26)
+        optBtn.BackgroundColor3 = BgDark
+        optBtn.Text = tostring(opt)
+        optBtn.TextColor3 = TextColor
+        optBtn.TextSize = 12
+        optBtn.Font = Enum.Font.Gotham
+        Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 4)
+        optBtn.MouseEnter:Connect(function()
+            TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 30, 90)}):Play()
+        end)
+        optBtn.MouseLeave:Connect(function()
+            TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = BgDark}):Play()
+        end)
+        optBtn.MouseButton1Click:Connect(function()
+            setValue(opt)
+            isOpen = false
+            arrow.Text = "▼"
+            TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+                Size = UDim2.new(1, 0, 0, 42)
+            }):Play()
+        end)
+    end
+    selector.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        arrow.Text = isOpen and "▲" or "▼"
+        local targetH = isOpen and (42 + optLayout.AbsoluteContentSize.Y + 8) or 42
+        TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 0, targetH)
+        }):Play()
+    end)
+    return setValue
+end
+
+-- ====== ФУНКЦИИ ОКРУЖЕНИЯ ======
+local _applying = false
+local function applyEnvironmentSettings()
+    if _applying then return end
+    _applying = true
+    for _, obj in pairs(Lighting:GetChildren()) do
+        if obj:IsA("Atmosphere") or obj:IsA("Clouds") then obj:Destroy() end
+    end
+    if SkyboxEnabled and CurrentPreset ~= "Default" then
+        local preset = SkyboxPresets[CurrentPreset]
+        if preset then
+            local currentSky = Lighting:FindFirstChildOfClass("Sky")
+            if currentSky then if currentSky.SkyboxBk ~= preset.SkyboxBk then currentSky:Destroy() currentSky = nil end end
+            if not currentSky then currentSky = Instance.new("Sky") currentSky.Parent = Lighting end
+            currentSky.SkyboxBk = preset.SkyboxBk; currentSky.SkyboxDn = preset.SkyboxDn; currentSky.SkyboxFt = preset.SkyboxFt
+            currentSky.SkyboxLf = preset.SkyboxLf; currentSky.SkyboxRt = preset.SkyboxRt; currentSky.SkyboxUp = preset.SkyboxUp
+            currentSky.StarCount = 1000; currentSky.SunAngularSize = 11; currentSky.MoonAngularSize = 11; currentSky.CelestialBodiesShown = true
+            if CustomFogEnabled then currentSky.CelestialBodiesShown = false end
+            Lighting.Brightness = preset.Brightness
+            Lighting.ExposureCompensation = preset.Exposure
+            Lighting.Ambient = preset.Ambient
+            Lighting.OutdoorAmbient = preset.Outdoor
+            Lighting.ColorShift_Top = preset.Top
+            Lighting.ColorShift_Bottom = preset.Bottom
+            if WorldTimeLock then
+                Lighting.ClockTime = WorldTimeValue
+            elseif not AutoTimeCycleEnabled then
+                Lighting.ClockTime = preset.ClockTime
+            end
+        end
+    else
+        for _, obj in pairs(Lighting:GetChildren()) do if obj:IsA("Sky") then obj:Destroy() end end
+        if ManualColorsEnabled then
+            Lighting.Brightness = (SkyBrightness / 100) * 2 + 0.5; Lighting.ExposureCompensation = (SkyExposure / 100) * 4 - 2
+            Lighting.Ambient = Color3.fromRGB(SkyR, SkyG, SkyB):Lerp(Color3.fromRGB(0,0,0), 0.5)
+            Lighting.OutdoorAmbient = Color3.fromRGB(HorR, HorG, HorB)
+            Lighting.ColorShift_Top = Color3.fromRGB(SkyR, SkyG, SkyB); Lighting.ColorShift_Bottom = Color3.fromRGB(HorR, HorG, HorB)
+        else
+            Lighting.Brightness = DefaultLighting.Brightness; Lighting.ExposureCompensation = DefaultLighting.ExposureCompensation
+            Lighting.Ambient = DefaultLighting.Ambient; Lighting.OutdoorAmbient = DefaultLighting.OutdoorAmbient
+            Lighting.ColorShift_Top = DefaultLighting.ColorShift_Top; Lighting.ColorShift_Bottom = DefaultLighting.ColorShift_Bottom
+        end
+        if WorldTimeLock then
+            Lighting.ClockTime = WorldTimeValue
+        elseif not AutoTimeCycleEnabled then
+            Lighting.ClockTime = DefaultLighting.ClockTime
+        end
+    end
+    if CustomFogEnabled then Lighting.FogStart = 0; Lighting.FogEnd = FogEndDist; Lighting.FogColor = FogColorRGB
+    else Lighting.FogStart = DefaultLighting.FogStart; Lighting.FogEnd = DefaultLighting.FogEnd; Lighting.FogColor = DefaultLighting.FogColor end
+    if not SkyboxEnabled and not ManualColorsEnabled then Lighting.Brightness = WorldBrightness; Lighting.ExposureCompensation = WorldExposure end
+    Lighting.GlobalShadows = ShadowsEnabled
+    _applying = false
+end
+
+Lighting.Changed:Connect(function(prop)
+    if _applying then return end
+    if SkyboxEnabled and CurrentPreset ~= "Default" then
+        local preset = SkyboxPresets[CurrentPreset]
+        if preset then
+            if prop == "ClockTime" then
+                if WorldTimeLock then Lighting.ClockTime = WorldTimeValue return end
+                if AutoTimeCycleEnabled then return end
+                if Lighting.ClockTime ~= preset.ClockTime then Lighting.ClockTime = preset.ClockTime end
+                return
+            end
+            if prop == "Brightness" and Lighting.Brightness ~= preset.Brightness then Lighting.Brightness = preset.Brightness
+            elseif prop == "ExposureCompensation" and Lighting.ExposureCompensation ~= preset.Exposure then Lighting.ExposureCompensation = preset.Exposure
+            elseif prop == "Ambient" and Lighting.Ambient ~= preset.Ambient then Lighting.Ambient = preset.Ambient
+            elseif prop == "OutdoorAmbient" and Lighting.OutdoorAmbient ~= preset.Outdoor then Lighting.OutdoorAmbient = preset.Outdoor
+            elseif prop == "ColorShift_Top" and Lighting.ColorShift_Top ~= preset.Top then Lighting.ColorShift_Top = preset.Top
+            elseif prop == "ColorShift_Bottom" and Lighting.ColorShift_Bottom ~= preset.Bottom then Lighting.ColorShift_Bottom = preset.Bottom
+            end
+        end
+    end
+    if CustomFogEnabled then
+        if prop == "FogStart" and Lighting.FogStart ~= 0 then Lighting.FogStart = 0
+        elseif prop == "FogEnd" and Lighting.FogEnd ~= FogEndDist then Lighting.FogEnd = FogEndDist
+        elseif prop == "FogColor" and Lighting.FogColor ~= FogColorRGB then Lighting.FogColor = FogColorRGB end
+    end
+    if WorldTimeLock and prop == "ClockTime" then Lighting.ClockTime = WorldTimeValue end
+end)
+
+Lighting.ChildRemoved:Connect(function(child)
+    if _applying then return end
+    if SkyboxEnabled and child:IsA("Sky") then applyEnvironmentSettings() end
+    if (BloomEnabled or ColorCorrectionEnabled or SunRaysEnabled or RTXEnabled) and
+        (child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect")) then
+        applyPCEffects()
+    end
+end)
+
+-- ====== PC EFFECTS ======
+local function applyPCEffects()
+    for _, obj in pairs(Lighting:GetChildren()) do
+        if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+
+    if RTXEnabled then
+        local bloom = Instance.new("BloomEffect"); bloom.Intensity = 0.8; bloom.Size = 40; bloom.Threshold = 0.7
+        bloom.Parent = Lighting
+        local cc = Instance.new("ColorCorrectionEffect"); cc.Brightness = 0.05; cc.Contrast = 0.2; cc.Saturation = 0.15
+        cc.Parent = Lighting
+        local sr = Instance.new("SunRaysEffect"); sr.Intensity = 0.5; sr.Spread = 0.6
+        sr.Parent = Lighting
+    else
+        if BloomEnabled then
+            local bloom = Instance.new("BloomEffect"); bloom.Intensity = BloomIntensity; bloom.Size = BloomSize; bloom.Threshold = BloomThreshold
+            bloom.Parent = Lighting
+        end
+        if ColorCorrectionEnabled then
+            local cc = Instance.new("ColorCorrectionEffect"); cc.Brightness = CCBrightness; cc.Contrast = CCContrast; cc.Saturation = CCSaturation
+            cc.Parent = Lighting
+        end
+        if SunRaysEnabled then
+            local sr = Instance.new("SunRaysEffect"); sr.Intensity = SunRaysIntensity; sr.Spread = SunRaysSpread
+            sr.Parent = Lighting
+        end
+    end
+end
+
+-- ====== WATCHDOG ======
+local function startShaderWatchdog()
+    task.spawn(function()
+        while true do
+            task.wait(2)
+            if not (BloomEnabled or ColorCorrectionEnabled or SunRaysEnabled or RTXEnabled) then continue end
+            local hasBloom = Lighting:FindFirstChildOfClass("BloomEffect")
+            local hasCC = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+            local hasSR = Lighting:FindFirstChildOfClass("SunRaysEffect")
+            if (BloomEnabled or RTXEnabled) and not hasBloom then applyPCEffects() continue end
+            if (ColorCorrectionEnabled or RTXEnabled) and not hasCC then applyPCEffects() continue end
+            if (SunRaysEnabled or RTXEnabled) and not hasSR then applyPCEffects() continue end
+        end
+    end)
+end
+
+-- ====== AUTO TIME CYCLE ======
+local function StartAutoTimeCycle()
+    task.spawn(function()
+        while true do
+            if AutoTimeCycleEnabled and not WorldTimeLock then
+                local current = Lighting.ClockTime
+                current = (current + TimeCycleSpeed * 0.1) % 24
+                Lighting.ClockTime = current
+                task.wait(0.2)
+            else
+                task.wait(1)
+            end
+        end
+    end)
+end
+
+-- ====== FOV & STRETCH ======
+pcall(function() RunService:UnbindFromRenderStep("XDFOV") end)
+pcall(function() RunService:UnbindFromRenderStep("XDStretch") end)
+
+RunService:BindToRenderStep("XDFOV", Enum.RenderPriority.Last.Value, function()
+    if FOVEnabled then
+        local cam = workspace.CurrentCamera
+        if cam then cam.FieldOfView = FOV end
+    end
+end)
+
+RunService:BindToRenderStep("XDStretch", Enum.RenderPriority.Last.Value, function()
+    if StretchEnabled then
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        local presetToScale = {
+            ["16:9 (Default)"] = 1.0,
+            ["16:10"] = 0.9,
+            ["4:3"] = 0.75,
+            ["5:4"] = 0.703,
+            ["3:4"] = 0.422,
+            ["Custom"] = 1.0
+        }
+        local ratio
+        if StretchPreset == "Custom" then
+            ratio = StretchCustom / 100
+        else
+            ratio = presetToScale[StretchPreset] or 1.0
+        end
+        if ratio ~= 1 then
+            local camCF = cam.CFrame
+            if camCF.XVector.Magnitude > 0 and camCF.YVector.Magnitude > 0 then
+                local cleanCF = CFrame.fromMatrix(camCF.Position, camCF.XVector.Unit, camCF.YVector.Unit, camCF.ZVector.Unit)
+                cam.CFrame = cleanCF * CFrame.new(0, 0, 0, 1, 0, 0, 0, ratio, 0, 0, 0, 1)
+            end
+        end
+    end
+end)
+
+-- ====== PARTICLES ======
+local WingEmitter = nil
+local function UpdateWings()
+    if WingEmitter then WingEmitter:Destroy() WingEmitter = nil end
+    if not WingsEnabled or not LocalPlayer.Character then return end
+    local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    WingEmitter = Instance.new("ParticleEmitter")
+    WingEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+    WingEmitter.Color = ColorSequence.new(WingsColor)
+    WingEmitter.Size = NumberSequence.new(0.5, 1.2)
+    WingEmitter.Lifetime = NumberRange.new(0.8, 1.5)
+    WingEmitter.Rate = 80
+    WingEmitter.Speed = NumberRange.new(2, 4)
+    WingEmitter.SpreadAngle = Vector2.new(360, 360)
+    WingEmitter.VelocityInheritance = 0.5
+    WingEmitter.Parent = root
+    WingEmitter.Enabled = true
+end
+
+local FootprintEmitters = {}
+local lastFootprintTime = 0
+
+local function CreateFootprint(position)
+    local attachment = Instance.new("Attachment")
+    attachment.WorldPosition = position
+    attachment.Parent = workspace.Terrain
+    local emitter = Instance.new("ParticleEmitter")
+    emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+    emitter.Color = ColorSequence.new(FootprintColor)
+    emitter.Size = NumberSequence.new(0.6, 1.2)
+    emitter.Lifetime = NumberRange.new(FootprintLifetime, FootprintLifetime + 0.2)
+    emitter.Rate = 40
+    emitter.Speed = NumberRange.new(1, 3)
+    if FootprintShape == "Circle" then
+        emitter.SpreadAngle = Vector2.new(360, 360)
+    elseif FootprintShape == "Square" then
+        emitter.SpreadAngle = Vector2.new(90, 90)
+    else
+        emitter.SpreadAngle = Vector2.new(30, 30)
+    end
+    emitter.EmissionDirection = Enum.NormalId.Top
+    emitter.VelocityInheritance = 0
+    emitter.Parent = attachment
+    emitter.Enabled = true
+    table.insert(FootprintEmitters, {attachment = attachment, emitter = emitter})
+    task.delay(FootprintLifetime + 0.5, function()
+        if attachment then attachment:Destroy() end
+        if emitter then emitter:Destroy() end
+    end)
+end
+
+local function UpdateFootprints(character)
+    if not FootprintsEnabled then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not root then return end
+    if root.AssemblyLinearVelocity.Magnitude < 2 then return end
+    local now = tick()
+    if now - lastFootprintTime >= FootprintDensity then
+        lastFootprintTime = now
+        CreateFootprint(root.Position - Vector3.new(0, 3, 0))
+    end
+end
+
+-- ====== CHARACTER HANDLING ======
+local function OnCharacterAdded(character)
+    task.wait(1)
+    if WingsEnabled then UpdateWings() end
+    local footprintConn = RunService.Heartbeat:Connect(function()
+        if character and character:IsDescendantOf(workspace) then
+            UpdateFootprints(character)
+        else
+            footprintConn:Disconnect()
+        end
+    end)
+    table.insert(connections, footprintConn)
+    applyPCEffects()
+end
+
+if LocalPlayer then
+    LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
+    if LocalPlayer.Character then
+        task.spawn(OnCharacterAdded, LocalPlayer.Character)
+    end
+end
+
+-- ====== СОХРАНЕНИЕ СОСТОЯНИЙ ======
+local function saveState()
+    local s = {}
+    for key, val in pairs(Settings) do
+        if typeof(val) == "Color3" then s[key] = {R = val.R, G = val.G, B = val.B}
+        else s[key] = val end
+    end
+    SaveSettings(s)
+end
+
+-- ====== ПРИМЕНЕНИЕ ТЕМЫ UI ======
+local function ApplyTheme()
+    local base = Color3.fromRGB(Settings.AccentR, Settings.AccentG, Settings.AccentB)
+    local second = Color3.fromRGB(Settings.SecondR, Settings.SecondG, Settings.SecondB)
+    local h, s, v = Color3.toHSV(base)
+    local gradEnd = Color3.fromHSV(h, s, math.clamp(v - 0.2, 0, 1))
+
+    local gradSeq
+    if Settings.GradientEnabled then
+        gradSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, base),
+            ColorSequenceKeypoint.new(1, second)
+        })
+    else
+        gradSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, base),
+            ColorSequenceKeypoint.new(1, gradEnd)
+        })
+    end
+
+    local strokeMain = Color3.fromHSV(h, s, math.clamp(v - 0.25, 0, 1))
+    local strokeDark = Color3.fromHSV(h, s, math.clamp(v - 0.6, 0.1, 1))
+
+    local function paint(list, color, isGrad)
+        for i = #list, 1, -1 do
+            local obj = list[i]
+            if obj and obj.Parent then
+                if isGrad then obj.Color = color
+                elseif obj:IsA("UIStroke") then obj.Color = color
+                elseif obj:IsA("TextLabel") or obj:IsA("TextBox") or obj:IsA("TextButton") then obj.TextColor3 = color
+                elseif obj:IsA("Frame") or obj:IsA("ScrollingFrame") then obj.BackgroundColor3 = color end
+            else table.remove(list, i) end
+        end
+    end
+
+    paint(ThemeElements.Gradients, gradSeq, true)
+    paint(ThemeElements.Texts, base, false)
+    paint(ThemeElements.MainStrokes, strokeMain, false)
+    paint(ThemeElements.DarkStrokes, strokeDark, false)
+
+    for i = #ThemeElements.Scrollbars, 1, -1 do
+        local obj = ThemeElements.Scrollbars[i]
+        if obj and obj.Parent then obj.ScrollBarImageColor3 = strokeMain else table.remove(ThemeElements.Scrollbars, i) end
+    end
+end
+
+-- ====== СОЗДАНИЕ СТРАНИЦ (вкладок) ======
+local Pages = {}
+local Buttons = {}
+
+local function CreatePage(name)
+    local PageFrame = Instance.new("ScrollingFrame", ContentContainer)
+    PageFrame.Size = UDim2.new(1, 0, 1, 0)
+    PageFrame.BackgroundTransparency = 1
+    PageFrame.BorderSizePixel = 0
+    PageFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    PageFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    PageFrame.ScrollBarThickness = 4
+    PageFrame.ScrollBarImageColor3 = Color3.fromRGB(255,255,255)
+    PageFrame.ScrollingEnabled = true
+    PageFrame.Visible = false
+    table.insert(ThemeElements.Scrollbars, PageFrame)
+
+    local Layout = Instance.new("UIListLayout", PageFrame)
+    Layout.Padding = UDim.new(0, 8)
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    Instance.new("UIPadding", PageFrame).PaddingTop = UDim.new(0, 10)
+
+    Pages[name] = PageFrame
+
+    local TabButton = Instance.new("TextButton", Sidebar)
+    TabButton.Size = UDim2.new(1, -4, 0, 34)
+    TabButton.BackgroundTransparency = 1
+    TabButton.Text = "   " .. name
+    TabButton.TextColor3 = TextMuted
+    TabButton.TextSize = 13
+    TabButton.Font = Enum.Font.GothamMedium
+    TabButton.TextXAlignment = Enum.TextXAlignment.Left
+
+    TabButton.MouseButton1Click:Connect(function()
+        for _, p in pairs(Pages) do p.Visible = false end
+        for _, b in pairs(Buttons) do b.TextColor3 = TextMuted end
+        PageFrame.Visible = true
+        TabButton.TextColor3 = Color3.fromRGB(255,255,255)
+    end)
+
+    Buttons[name] = TabButton
+    return PageFrame
+end
+
+-- Создаём страницы
+local UpdateLogPage = CreatePage("Update Log")
+local SkyPage = CreatePage("Skybox")
+local FogPage = CreatePage("Fog")
+local PartPage = CreatePage("Particles")
+local PCPage = CreatePage("PC")
+local WorldPage = CreatePage("World")
+local GamePage = CreatePage("Game")
+
+-- === UPDATE LOG ===
+local UpdateLogLabel = Instance.new("TextLabel", UpdateLogPage)
+UpdateLogLabel.Size = UDim2.new(0, 350, 0, 0)
+UpdateLogLabel.AutomaticSize = Enum.AutomaticSize.Y
+UpdateLogLabel.BackgroundTransparency = 1
+UpdateLogLabel.TextWrapped = true
+UpdateLogLabel.Text = [[
+♥ XD Visuals Hub v2.4 (с вкладками)
+- FOV и Stretch через BindToRenderStep (совместимость с Evade)
+- Полный набор эффектов окружения
+- Сохранение настроек
+- Шестерёнка: кастомизация UI (цвета, градиент)
+]]
+UpdateLogLabel.TextColor3 = TextColor
+UpdateLogLabel.TextSize = 13
+UpdateLogLabel.Font = Enum.Font.GothamMedium
+UpdateLogLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- === SKYBOX ===
+CreateToggle(SkyPage, "Enable Skybox", SkyboxEnabled, function(val)
+    SkyboxEnabled = val; Settings.SkyboxEnabled = val; saveState(); applyEnvironmentSettings()
+end)
+CreateDropdown(SkyPage, "Theme", {"Default","Day","Sunset","Night","Space","Purple"}, CurrentPreset, function(val)
+    CurrentPreset = val; Settings.CurrentPreset = val; saveState(); applyEnvironmentSettings()
+end)
+CreateToggle(SkyPage, "Manual Colors", ManualColorsEnabled, function(val)
+    ManualColorsEnabled = val; Settings.ManualColorsEnabled = val; saveState(); applyEnvironmentSettings()
+end)
+CreateSlider(SkyPage, "Sky R", 0, 255, SkyR, function(val) SkyR = val; Settings.SkyR = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
+CreateSlider(SkyPage, "Sky G", 0, 255, SkyG, function(val) SkyG = val; Settings.SkyG = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
+CreateSlider(SkyPage, "Sky B", 0, 255, SkyB, function(val) SkyB = val; Settings.SkyB = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
+CreateSlider(SkyPage, "Horizon R", 0, 255, HorR, function(val) HorR = val; Settings.HorR = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
+CreateSlider(SkyPage, "Horizon G", 0, 255, HorG, function(val) HorG = val; Settings.HorG = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
+CreateSlider(SkyPage, "Horizon B", 0, 255, HorB, function(val) HorB = val; Settings.HorB = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
+
+-- === FOG ===
+CreateToggle(FogPage, "Enable Fog", CustomFogEnabled, function(val)
+    CustomFogEnabled = val; Settings.CustomFogEnabled = val; saveState(); applyEnvironmentSettings()
+end)
+CreateDropdown(FogPage, "Distance", {"Dense (200)","Medium (500)","Far (1000)"}, "Far (1000)", function(val)
+    if val == "Dense (200)" then FogEndDist = 200 elseif val == "Medium (500)" then FogEndDist = 500 else FogEndDist = 1000 end
+    Settings.FogEndDist = FogEndDist; saveState(); applyEnvironmentSettings()
+end)
+
+-- === PARTICLES ===
+CreateToggle(PartPage, "Angel Wings", WingsEnabled, function(val)
+    WingsEnabled = val; Settings.WingsEnabled = val; saveState(); UpdateWings()
+end)
+CreateDropdown(PartPage, "Wings Color", {"White","Purple","Cyan","Red","Gold","Black"}, "White", function(val)
+    local colors = { White = Color3.fromRGB(255,255,255), Purple = Color3.fromRGB(151,71,255), Cyan = Color3.fromRGB(0,255,255), Red = Color3.fromRGB(255,50,50), Gold = Color3.fromRGB(255,215,0), Black = Color3.fromRGB(0,0,0) }
+    WingsColor = colors[val]; Settings.WingsColor = WingsColor; saveState(); UpdateWings()
+end)
+CreateToggle(PartPage, "Footprints", FootprintsEnabled, function(val)
+    FootprintsEnabled = val; Settings.FootprintsEnabled = val; saveState(); lastFootprintTime = 0
+end)
+CreateDropdown(PartPage, "Footprint Color", {"White","Purple","Cyan","Red","Gold","Black"}, "White", function(val)
+    local colors = { White = Color3.fromRGB(255,255,255), Purple = Color3.fromRGB(151,71,255), Cyan = Color3.fromRGB(0,255,255), Red = Color3.fromRGB(255,50,50), Gold = Color3.fromRGB(255,215,0), Black = Color3.fromRGB(0,0,0) }
+    FootprintColor = colors[val]; Settings.FootprintColor = FootprintColor; saveState()
+end)
+CreateDropdown(PartPage, "Shape", {"Circle","Square","Star"}, FootprintShape, function(val)
+    FootprintShape = val; Settings.FootprintShape = val; saveState()
+end)
+CreateSlider(PartPage, "Density", 0.1, 0.5, FootprintDensity, function(val)
+    FootprintDensity = val; Settings.FootprintDensity = val; saveState()
+end)
+CreateSlider(PartPage, "Lifetime", 0.5, 2.0, FootprintLifetime, function(val)
+    FootprintLifetime = val; Settings.FootprintLifetime = val; saveState()
+end)
+
+-- === PC ===
+CreateToggle(PCPage, "RTX Mode", RTXEnabled, function(val)
+    RTXEnabled = val; Settings.RTXEnabled = val; saveState(); applyPCEffects()
+end)
+CreateToggle(PCPage, "Bloom", BloomEnabled, function(val)
+    BloomEnabled = val; Settings.BloomEnabled = val; saveState(); if not RTXEnabled then applyPCEffects() end
+end)
+CreateSlider(PCPage, "Bloom Intensity", 0, 10, BloomIntensity, function(val)
+    BloomIntensity = val; Settings.BloomIntensity = val; saveState(); if BloomEnabled and not RTXEnabled then applyPCEffects() end
+end)
+CreateSlider(PCPage, "Bloom Size", 0, 100, BloomSize, function(val)
+    BloomSize = val; Settings.BloomSize = val; saveState(); if BloomEnabled and not RTXEnabled then applyPCEffects() end
+end)
+CreateSlider(PCPage, "Bloom Threshold", 0, 1, BloomThreshold, function(val)
+    BloomThreshold = val; Settings.BloomThreshold = val; saveState(); if BloomEnabled and not RTXEnabled then applyPCEffects() end
+end)
+CreateToggle(PCPage, "Color Correction", ColorCorrectionEnabled, function(val)
+    ColorCorrectionEnabled = val; Settings.ColorCorrectionEnabled = val; saveState(); if not RTXEnabled then applyPCEffects() end
+end)
+CreateSlider(PCPage, "CC Brightness", -2, 2, CCBrightness, function(val)
+    CCBrightness = val; Settings.CCBrightness = val; saveState(); if ColorCorrectionEnabled and not RTXEnabled then applyPCEffects() end
+end)
+CreateSlider(PCPage, "CC Contrast", -2, 2, CCContrast, function(val)
+    CCContrast = val; Settings.CCContrast = val; saveState(); if ColorCorrectionEnabled and not RTXEnabled then applyPCEffects() end
+end)
+CreateSlider(PCPage, "CC Saturation", -2, 2, CCSaturation, function(val)
+    CCSaturation = val; Settings.CCSaturation = val; saveState(); if ColorCorrectionEnabled and not RTXEnabled then applyPCEffects() end
+end)
+CreateToggle(PCPage, "Sun Rays", SunRaysEnabled, function(val)
+    SunRaysEnabled = val; Settings.SunRaysEnabled = val; saveState(); if not RTXEnabled then applyPCEffects() end
+end)
+CreateSlider(PCPage, "Sun Rays Intensity", 0, 1, SunRaysIntensity, function(val)
+    SunRaysIntensity = val; Settings.SunRaysIntensity = val; saveState(); if SunRaysEnabled and not RTXEnabled then applyPCEffects() end
+end)
+CreateSlider(PCPage, "Sun Rays Spread", 0, 1, SunRaysSpread, function(val)
+    SunRaysSpread = val; Settings.SunRaysSpread = val; saveState(); if SunRaysEnabled and not RTXEnabled then applyPCEffects() end
+end)
+CreateToggle(PCPage, "Shadows", ShadowsEnabled, function(val)
+    ShadowsEnabled = val; Settings.ShadowsEnabled = val; saveState(); applyEnvironmentSettings()
+end)
+
+-- === WORLD ===
+CreateToggle(WorldPage, "Lock Time", WorldTimeLock, function(val)
+    WorldTimeLock = val; Settings.WorldTimeLock = val; saveState(); if val then Lighting.ClockTime = WorldTimeValue end
+end)
+CreateSlider(WorldPage, "Time (0-24)", 0, 24, WorldTimeValue, function(val)
+    WorldTimeValue = val; Settings.WorldTimeValue = val; saveState(); if WorldTimeLock then Lighting.ClockTime = val end
+end)
+CreateSlider(WorldPage, "Brightness", 0, 5, WorldBrightness, function(val)
+    WorldBrightness = val; Settings.WorldBrightness = val; saveState(); if not SkyboxEnabled and not ManualColorsEnabled then Lighting.Brightness = val end
+end)
+CreateSlider(WorldPage, "Exposure", -2, 2, WorldExposure, function(val)
+    WorldExposure = val; Settings.WorldExposure = val; saveState(); if not SkyboxEnabled and not ManualColorsEnabled then Lighting.ExposureCompensation = val end
+end)
+CreateToggle(WorldPage, "Auto Cycle", AutoTimeCycleEnabled, function(val)
+    AutoTimeCycleEnabled = val; Settings.AutoTimeCycleEnabled = val; saveState()
+end)
+CreateSlider(WorldPage, "Cycle Speed", 0.1, 10.0, TimeCycleSpeed, function(val)
+    TimeCycleSpeed = val; Settings.TimeCycleSpeed = val; saveState()
+end)
+
+-- === GAME (FOV, Stretch) ===
+CreateToggle(GamePage, "Enable FOV", FOVEnabled, function(val)
+    FOVEnabled = val; Settings.FOVEnabled = val; saveState()
+end)
+CreateSlider(GamePage, "FOV", 30, 200, FOV, function(val)
+    FOV = val; Settings.FOV = val; saveState()
+end)
+CreateToggle(GamePage, "Enable Stretch", StretchEnabled, function(val)
+    StretchEnabled = val; Settings.StretchEnabled = val; saveState()
+end)
+CreateDropdown(GamePage, "Aspect Ratio", {"16:9 (Default)","16:10","4:3","5:4","3:4","Custom"}, StretchPreset, function(val)
+    StretchPreset = val; Settings.StretchPreset = val; saveState()
+end)
+CreateSlider(GamePage, "Custom Scale (%)", 30, 150, StretchCustom, function(val)
+    StretchCustom = val; Settings.StretchCustom = val; saveState()
+end)
+
+-- ====== НАСТРОЙКИ UI (шестерёнка) ======
+local function CreateUIControls()
+    -- === UI Theme ===
+    local label = Instance.new("TextLabel", SettingsOverlay)
+    label.Size = UDim2.new(0, 350, 0, 20)
+    label.BackgroundTransparency = 1
+    label.Text = "=== UI Theme ==="
+    label.TextColor3 = TextColor
+    label.TextSize = 14
+    label.Font = Enum.Font.GothamBold
+    label.TextXAlignment = Enum.TextXAlignment.Center
+
+    local function sliderColor(text, keyR, keyG, keyB, defaultR, defaultG, defaultB)
+        CreateSlider(SettingsOverlay, text .. " R", 0, 255, Settings[keyR], function(val) Settings[keyR] = val; saveState(); ApplyTheme() end)
+        CreateSlider(SettingsOverlay, text .. " G", 0, 255, Settings[keyG], function(val) Settings[keyG] = val; saveState(); ApplyTheme() end)
+        CreateSlider(SettingsOverlay, text .. " B", 0, 255, Settings[keyB], function(val) Settings[keyB] = val; saveState(); ApplyTheme() end)
+    end
+
+    sliderColor("Main", "AccentR", "AccentG", "AccentB", 255, 255, 255)
+
+    CreateToggle(SettingsOverlay, "Enable Gradient", Settings.GradientEnabled, function(val)
+        Settings.GradientEnabled = val; saveState(); ApplyTheme()
+    end)
+
+    sliderColor("Second", "SecondR", "SecondG", "SecondB", 0, 0, 0)
+
+    local resetBtn = Instance.new("TextButton", SettingsOverlay)
+    resetBtn.Size = UDim2.new(0, 120, 0, 30)
+    resetBtn.BackgroundColor3 = BgElement
+    resetBtn.Text = "Reset to White"
+    resetBtn.TextColor3 = TextColor
+    resetBtn.TextSize = 12
+    resetBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 6)
+    resetBtn.MouseButton1Click:Connect(function()
+        Settings.AccentR = 255; Settings.AccentG = 255; Settings.AccentB = 255
+        Settings.GradientEnabled = false
+        Settings.SecondR = 0; Settings.SecondG = 0; Settings.SecondB = 0
+        saveState(); ApplyTheme()
+    end)
+end
+
+CreateUIControls()
+
+-- ====== ЗАПУСК ======
+Pages["Update Log"].Visible = true
+Buttons["Update Log"].TextColor3 = Color3.fromRGB(255,255,255)
+ApplyTheme()
+applyEnvironmentSettings()
+applyPCEffects()
+startShaderWatchdog()
+StartAutoTimeCycle()
