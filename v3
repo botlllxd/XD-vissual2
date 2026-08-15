@@ -1,4 +1,4 @@
--- XD Premium Visuals Hub v2.4 (без конфигов и хаба)
+-- XD Visuals Hub v3.0 (исправлены SunRays, Lock Time с цветами)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -32,7 +32,7 @@ if not successParent and PlayerGui then
     ScreenGui.Parent = PlayerGui
 end
 
--- ====== СОХРАНЕНИЕ (только автоматическое) ======
+-- ====== СОХРАНЕНИЕ ======
 local SaveKey = "XD_Visuals_Settings"
 local function SaveSettings(data)
     pcall(function()
@@ -51,15 +51,14 @@ end
 
 -- ====== НАСТРОЙКИ ======
 local connections = {}
-local UI_Elements = {}
 local ThemeElements = { Gradients = {}, Texts = {}, MainStrokes = {}, DarkStrokes = {}, Scrollbars = {} }
+local AccentColor = Color3.fromRGB(255,255,255)
+local HoverColor = Color3.fromRGB(180,80,255)
 
 local Settings = {
-    -- UI
     AccentR = 255, AccentG = 255, AccentB = 255,
     GradientEnabled = false,
     SecondR = 0, SecondG = 0, SecondB = 0,
-    -- Визуалы
     CustomFogEnabled = false, FogEndDist = 1000, FogColorRGB = Color3.fromRGB(150,150,150),
     SkyboxEnabled = false, CurrentPreset = "Day",
     WorldTimeLock = false, WorldTimeValue = 14, WorldBrightness = 2.5, WorldExposure = 0,
@@ -76,7 +75,6 @@ local Settings = {
     StretchEnabled = false, StretchPreset = "16:9 (Default)", StretchCustom = 100
 }
 
--- Загрузка сохранений
 local saved = LoadSettings()
 if saved then
     for key, val in pairs(saved) do
@@ -205,12 +203,11 @@ HeaderBottomStroke.Position = UDim2.new(0, 0, 1, 0)
 HeaderBottomStroke.BorderSizePixel = 0
 table.insert(ThemeElements.DarkStrokes, HeaderBottomStroke)
 
--- Заголовок
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, -80, 1, 0)
 Title.Position = UDim2.new(0, 16, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "♥ XD v2.4"
+Title.Text = "♥ XD v3.0"
 Title.TextColor3 = Color3.fromRGB(255,255,255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -224,7 +221,6 @@ TitleGrad.Color = ColorSequence.new({
 })
 table.insert(ThemeElements.Gradients, TitleGrad)
 
--- Шестерёнка
 local GearBtn = Instance.new("ImageButton", Header)
 GearBtn.Size = UDim2.new(0, 20, 0, 20)
 GearBtn.Position = UDim2.new(1, -32, 0.5, -10)
@@ -240,14 +236,12 @@ Body.Position = UDim2.new(0, 0, 0, 45)
 Body.BackgroundTransparency = 1
 Body.Visible = false
 
--- Боковая панель
 local Sidebar = Instance.new("Frame", Body)
 Sidebar.Size = UDim2.new(0, 140, 1, 0)
 Sidebar.BackgroundColor3 = BgSidebar
 Sidebar.BorderSizePixel = 0
 Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 10)
 
--- Контейнер для страниц
 local ContentContainer = Instance.new("Frame", Body)
 ContentContainer.Size = UDim2.new(1, -140, 1, 0)
 ContentContainer.Position = UDim2.new(0, 140, 0, 0)
@@ -280,7 +274,6 @@ soLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     SettingsOverlay.CanvasSize = UDim2.new(0, 0, 0, soLayout.AbsoluteContentSize.Y + 30)
 end)
 
--- Переключение оверлея
 GearBtn.MouseButton1Click:Connect(function()
     if not Body.Visible then return end
     SettingsOverlay.Visible = not SettingsOverlay.Visible
@@ -319,7 +312,7 @@ local function ToggleMenu()
     end
 end
 
--- Перетаскивание (всегда)
+-- Перетаскивание
 local dragging, dragInput, dragStartPos, dragStartFramePos
 local touchStartTime = 0
 Header.InputBegan:Connect(function(input)
@@ -365,7 +358,22 @@ table.insert(connections, UserInputService.InputBegan:Connect(function(input)
     end
 end))
 
--- ====== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ UI ======
+-- ====== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ФОРМАТИРОВАНИЯ ЧИСЕЛ ======
+local function formatNum(num, step)
+    if step >= 1 then
+        return tostring(math.floor(num + 0.5))
+    else
+        local decimals = 0
+        local s = tostring(step)
+        if s:match("%.") then
+            decimals = #s:match("%.(%d+)")
+        end
+        local rounded = math.floor(num / step + 0.5) * step
+        return string.format("%." .. decimals .. "f", rounded)
+    end
+end
+
+-- ====== UI КОНСТРУКТОРЫ ======
 local function CreateLabel(parent, text)
     local label = Instance.new("TextLabel", parent)
     label.Size = UDim2.new(0, 350, 0, 20)
@@ -378,7 +386,8 @@ local function CreateLabel(parent, text)
     return label
 end
 
-local function CreateSlider(parent, text, min, max, default, callback)
+local function CreateSlider(parent, text, min, max, default, callback, step)
+    step = step or 1
     local frame = Instance.new("Frame", parent)
     frame.Size = UDim2.new(0, 350, 0, 54)
     frame.BackgroundColor3 = BgElement
@@ -399,7 +408,8 @@ local function CreateSlider(parent, text, min, max, default, callback)
     valLabel.Size = UDim2.new(0, 38, 0, 18)
     valLabel.Position = UDim2.new(1, -50, 0, 8)
     valLabel.BackgroundColor3 = BgDark
-    valLabel.Text = tostring(default)
+    local initRounded = math.floor(default / step + 0.5) * step
+    valLabel.Text = formatNum(initRounded, step)
     valLabel.TextSize = 11
     valLabel.Font = Enum.Font.GothamBold
     Instance.new("UICorner", valLabel).CornerRadius = UDim.new(0, 4)
@@ -410,8 +420,9 @@ local function CreateSlider(parent, text, min, max, default, callback)
     bar.BackgroundColor3 = BgDark
     Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
     local fill = Instance.new("Frame", bar)
-    fill.Size = UDim2.new((default - min)/(max - min), 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    local initFraction = (initRounded - min) / (max - min)
+    fill.Size = UDim2.new(initFraction, 0, 1, 0)
+    fill.BackgroundColor3 = AccentColor
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
     local fillGrad = Instance.new("UIGradient", fill)
     table.insert(ThemeElements.Gradients, fillGrad)
@@ -422,9 +433,12 @@ local function CreateSlider(parent, text, min, max, default, callback)
     local dragging = false
     local touchID = nil
     local function setVal(val)
-        valLabel.Text = tostring(val)
-        fill.Size = UDim2.new((val - min)/(max - min), 0, 1, 0)
-        callback(val)
+        local rounded = math.floor(val / step + 0.5) * step
+        if rounded < min then rounded = min end
+        if rounded > max then rounded = max end
+        valLabel.Text = formatNum(rounded, step)
+        fill.Size = UDim2.new((rounded - min) / (max - min), 0, 1, 0)
+        callback(rounded)
     end
     btn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -438,15 +452,17 @@ local function CreateSlider(parent, text, min, max, default, callback)
             touchID = nil
         end
     end)
-    table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+    local inputConn = UserInputService.InputChanged:Connect(function(input)
         if dragging and (input == touchID or input.UserInputType == Enum.UserInputType.MouseMovement) then
             local mouseX = input.Position.X
             local barX = bar.AbsolutePosition.X
             local barSize = bar.AbsoluteSize.X
             local percent = math.clamp((mouseX - barX) / barSize, 0, 1)
-            setVal(math.floor(min + (max - min) * percent))
+            local raw = min + (max - min) * percent
+            setVal(raw)
         end
-    end))
+    end)
+    table.insert(connections, inputConn)
     return setVal
 end
 
@@ -461,6 +477,12 @@ local function CreateButton(parent, text, callback)
     local stroke = Instance.new("UIStroke", btn)
     table.insert(ThemeElements.DarkStrokes, stroke)
     btn.BackgroundColor3 = BgElement
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = HoverColor
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = BgElement
+    end)
     btn.MouseButton1Click:Connect(callback)
     return btn
 end
@@ -485,7 +507,7 @@ local function CreateToggle(parent, text, default, callback)
     local btn = Instance.new("TextButton", frame)
     btn.Size = UDim2.new(0, 40, 0, 20)
     btn.Position = UDim2.new(1, -52, 0.5, -10)
-    btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = AccentColor
     btn.Text = ""
     Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
     local grad = Instance.new("UIGradient", btn)
@@ -502,7 +524,7 @@ local function CreateToggle(parent, text, default, callback)
         state = newState
         local circlePos = state and UDim2.new(0, 23, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
         if state then
-            btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            btn.BackgroundColor3 = AccentColor
             grad.Enabled = true
         else
             btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
@@ -557,13 +579,20 @@ local function CreateDropdown(parent, text, options, default, callback)
     local optLayout = Instance.new("UIListLayout", optionHolder)
     optLayout.SortOrder = Enum.SortOrder.LayoutOrder
     optLayout.Padding = UDim.new(0, 4)
+
     local isOpen = false
     local currentValue = default
     local function setValue(val)
         currentValue = val
         selector.Text = "   " .. tostring(val)
         callback(val)
+        isOpen = false
+        arrow.Text = "▼"
+        TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 350, 0, 42)
+        }):Play()
     end
+
     for _, opt in ipairs(options) do
         local optBtn = Instance.new("TextButton", optionHolder)
         optBtn.Size = UDim2.new(1, 0, 0, 26)
@@ -574,49 +603,78 @@ local function CreateDropdown(parent, text, options, default, callback)
         optBtn.Font = Enum.Font.Gotham
         Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 4)
         optBtn.MouseEnter:Connect(function()
-            TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 30, 90)}):Play()
+            TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = HoverColor}):Play()
         end)
         optBtn.MouseLeave:Connect(function()
             TweenService:Create(optBtn, TweenInfo.new(0.15), {BackgroundColor3 = BgDark}):Play()
         end)
         optBtn.MouseButton1Click:Connect(function()
             setValue(opt)
-            isOpen = false
-            arrow.Text = "▼"
-            TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1, 0, 0, 42)
-            }):Play()
         end)
     end
+
+    optLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        optionHolder.Size = UDim2.new(1, -24, 0, optLayout.AbsoluteContentSize.Y)
+    end)
+
     selector.MouseButton1Click:Connect(function()
         isOpen = not isOpen
         arrow.Text = isOpen and "▲" or "▼"
-        local targetH = isOpen and (42 + optLayout.AbsoluteContentSize.Y + 8) or 42
-        TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
-            Size = UDim2.new(1, 0, 0, targetH)
-        }):Play()
+        if isOpen then
+            local targetH = 42 + optLayout.AbsoluteContentSize.Y + 8
+            TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 350, 0, targetH)
+            }):Play()
+        else
+            TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 350, 0, 42)
+            }):Play()
+        end
     end)
+
     return setValue
 end
+
+-- ====== ФУНКЦИЯ ДЛЯ ИНТЕРПОЛЯЦИИ ЦВЕТОВ ======
+local function lerpColor(c1, c2, t)
+    return Color3.new(
+        c1.R + (c2.R - c1.R) * t,
+        c1.G + (c2.G - c1.G) * t,
+        c1.B + (c2.B - c1.B) * t
+    )
+end
+local function lerpNum(a, b, t) return a + (b - a) * t end
 
 -- ====== ФУНКЦИИ ОКРУЖЕНИЯ ======
 local _applying = false
 local function applyEnvironmentSettings()
     if _applying then return end
     _applying = true
+
+    -- Удаляем лишние объекты (Atmosphere, Clouds)
     for _, obj in pairs(Lighting:GetChildren()) do
         if obj:IsA("Atmosphere") or obj:IsA("Clouds") then obj:Destroy() end
     end
+
+    -- === ПРИМЕНЯЕМ SKYBOX (если включён) ===
     if SkyboxEnabled and CurrentPreset ~= "Default" then
         local preset = SkyboxPresets[CurrentPreset]
         if preset then
             local currentSky = Lighting:FindFirstChildOfClass("Sky")
-            if currentSky then if currentSky.SkyboxBk ~= preset.SkyboxBk then currentSky:Destroy() currentSky = nil end end
-            if not currentSky then currentSky = Instance.new("Sky") currentSky.Parent = Lighting end
-            currentSky.SkyboxBk = preset.SkyboxBk; currentSky.SkyboxDn = preset.SkyboxDn; currentSky.SkyboxFt = preset.SkyboxFt
-            currentSky.SkyboxLf = preset.SkyboxLf; currentSky.SkyboxRt = preset.SkyboxRt; currentSky.SkyboxUp = preset.SkyboxUp
-            currentSky.StarCount = 1000; currentSky.SunAngularSize = 11; currentSky.MoonAngularSize = 11; currentSky.CelestialBodiesShown = true
-            if CustomFogEnabled then currentSky.CelestialBodiesShown = false end
+            if currentSky then currentSky:Destroy() end
+            currentSky = Instance.new("Sky")
+            currentSky.Parent = Lighting
+            currentSky.SkyboxBk = preset.SkyboxBk
+            currentSky.SkyboxDn = preset.SkyboxDn
+            currentSky.SkyboxFt = preset.SkyboxFt
+            currentSky.SkyboxLf = preset.SkyboxLf
+            currentSky.SkyboxRt = preset.SkyboxRt
+            currentSky.SkyboxUp = preset.SkyboxUp
+            currentSky.StarCount = 1000
+            currentSky.SunAngularSize = 11
+            currentSky.MoonAngularSize = 11
+            currentSky.CelestialBodiesShown = (not CustomFogEnabled)
+
             Lighting.Brightness = preset.Brightness
             Lighting.ExposureCompensation = preset.Exposure
             Lighting.Ambient = preset.Ambient
@@ -630,30 +688,117 @@ local function applyEnvironmentSettings()
             end
         end
     else
-        for _, obj in pairs(Lighting:GetChildren()) do if obj:IsA("Sky") then obj:Destroy() end end
+        -- Удаляем Sky
+        for _, obj in pairs(Lighting:GetChildren()) do
+            if obj:IsA("Sky") then obj:Destroy() end
+        end
+
+        -- Применяем Manual Colors, если включены
         if ManualColorsEnabled then
-            Lighting.Brightness = (SkyBrightness / 100) * 2 + 0.5; Lighting.ExposureCompensation = (SkyExposure / 100) * 4 - 2
             Lighting.Ambient = Color3.fromRGB(SkyR, SkyG, SkyB):Lerp(Color3.fromRGB(0,0,0), 0.5)
             Lighting.OutdoorAmbient = Color3.fromRGB(HorR, HorG, HorB)
-            Lighting.ColorShift_Top = Color3.fromRGB(SkyR, SkyG, SkyB); Lighting.ColorShift_Bottom = Color3.fromRGB(HorR, HorG, HorB)
+            Lighting.ColorShift_Top = Color3.fromRGB(SkyR, SkyG, SkyB)
+            Lighting.ColorShift_Bottom = Color3.fromRGB(HorR, HorG, HorB)
         else
-            Lighting.Brightness = DefaultLighting.Brightness; Lighting.ExposureCompensation = DefaultLighting.ExposureCompensation
-            Lighting.Ambient = DefaultLighting.Ambient; Lighting.OutdoorAmbient = DefaultLighting.OutdoorAmbient
-            Lighting.ColorShift_Top = DefaultLighting.ColorShift_Top; Lighting.ColorShift_Bottom = DefaultLighting.ColorShift_Bottom
+            -- Если Lock Time включён и пресет Default – применяем плавные цвета
+            if WorldTimeLock and not SkyboxEnabled then
+                local time = WorldTimeValue
+                local day = SkyboxPresets.Day
+                local sunset = SkyboxPresets.Sunset
+                local night = SkyboxPresets.Night
+
+                local factor, phase
+                if time >= 6 and time < 12 then
+                    factor = (time - 6) / 6
+                    phase = "morning"
+                elseif time >= 12 and time < 18 then
+                    factor = (time - 12) / 6
+                    phase = "day"
+                elseif time >= 18 and time < 21 then
+                    factor = (time - 18) / 3
+                    phase = "sunset"
+                else
+                    factor = 0
+                    phase = "night"
+                end
+
+                local skyColor, horizonColor, ambient, outdoor, brightness, exposure
+                if phase == "morning" then
+                    skyColor = lerpColor(night.Top, day.Top, factor)
+                    horizonColor = lerpColor(night.Bottom, day.Bottom, factor)
+                    ambient = lerpColor(night.Ambient, day.Ambient, factor)
+                    outdoor = lerpColor(night.Outdoor, day.Outdoor, factor)
+                    brightness = lerpNum(night.Brightness, day.Brightness, factor)
+                    exposure = lerpNum(night.Exposure, day.Exposure, factor)
+                elseif phase == "day" then
+                    skyColor = lerpColor(day.Top, sunset.Top, factor)
+                    horizonColor = lerpColor(day.Bottom, sunset.Bottom, factor)
+                    ambient = lerpColor(day.Ambient, sunset.Ambient, factor)
+                    outdoor = lerpColor(day.Outdoor, sunset.Outdoor, factor)
+                    brightness = lerpNum(day.Brightness, sunset.Brightness, factor)
+                    exposure = lerpNum(day.Exposure, sunset.Exposure, factor)
+                elseif phase == "sunset" then
+                    skyColor = lerpColor(sunset.Top, night.Top, factor)
+                    horizonColor = lerpColor(sunset.Bottom, night.Bottom, factor)
+                    ambient = lerpColor(sunset.Ambient, night.Ambient, factor)
+                    outdoor = lerpColor(sunset.Outdoor, night.Outdoor, factor)
+                    brightness = lerpNum(sunset.Brightness, night.Brightness, factor)
+                    exposure = lerpNum(sunset.Exposure, night.Exposure, factor)
+                else -- night
+                    skyColor = night.Top
+                    horizonColor = night.Bottom
+                    ambient = night.Ambient
+                    outdoor = night.Outdoor
+                    brightness = night.Brightness
+                    exposure = night.Exposure
+                end
+
+                Lighting.ColorShift_Top = skyColor
+                Lighting.ColorShift_Bottom = horizonColor
+                Lighting.Ambient = ambient
+                Lighting.OutdoorAmbient = outdoor
+                Lighting.Brightness = brightness
+                Lighting.ExposureCompensation = exposure
+                Lighting.ClockTime = WorldTimeValue
+            else
+                -- Обычный Default – восстанавливаем стандартные цвета
+                Lighting.Ambient = DefaultLighting.Ambient
+                Lighting.OutdoorAmbient = DefaultLighting.OutdoorAmbient
+                Lighting.ColorShift_Top = DefaultLighting.ColorShift_Top
+                Lighting.ColorShift_Bottom = DefaultLighting.ColorShift_Bottom
+                if WorldTimeLock then
+                    Lighting.ClockTime = WorldTimeValue
+                elseif not AutoTimeCycleEnabled then
+                    Lighting.ClockTime = DefaultLighting.ClockTime
+                end
+            end
         end
-        if WorldTimeLock then
-            Lighting.ClockTime = WorldTimeValue
-        elseif not AutoTimeCycleEnabled then
-            Lighting.ClockTime = DefaultLighting.ClockTime
+
+        -- Если нет Manual Colors и не Lock Time, применяем Brightness/Exposure из World
+        if not ManualColorsEnabled and not (WorldTimeLock and not SkyboxEnabled) then
+            Lighting.Brightness = WorldBrightness
+            Lighting.ExposureCompensation = WorldExposure
         end
     end
-    if CustomFogEnabled then Lighting.FogStart = 0; Lighting.FogEnd = FogEndDist; Lighting.FogColor = FogColorRGB
-    else Lighting.FogStart = DefaultLighting.FogStart; Lighting.FogEnd = DefaultLighting.FogEnd; Lighting.FogColor = DefaultLighting.FogColor end
-    if not SkyboxEnabled and not ManualColorsEnabled then Lighting.Brightness = WorldBrightness; Lighting.ExposureCompensation = WorldExposure end
+
+    -- === FOG ===
+    if CustomFogEnabled then
+        Lighting.FogStart = 0
+        Lighting.FogEnd = FogEndDist
+        Lighting.FogColor = FogColorRGB
+    else
+        Lighting.FogStart = DefaultLighting.FogStart
+        Lighting.FogEnd = DefaultLighting.FogEnd
+        Lighting.FogColor = DefaultLighting.FogColor
+    end
+
+    -- Shadows
     Lighting.GlobalShadows = ShadowsEnabled
+
     _applying = false
 end
 
+-- Обработчики изменений
 Lighting.Changed:Connect(function(prop)
     if _applying then return end
     if SkyboxEnabled and CurrentPreset ~= "Default" then
@@ -691,7 +836,7 @@ Lighting.ChildRemoved:Connect(function(child)
     end
 end)
 
--- ====== PC EFFECTS ======
+-- ====== PC EFFECTS (исправленные SunRays) ======
 local function applyPCEffects()
     for _, obj in pairs(Lighting:GetChildren()) do
         if obj:IsA("BloomEffect") or obj:IsA("ColorCorrectionEffect") or obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
@@ -700,23 +845,43 @@ local function applyPCEffects()
     end
 
     if RTXEnabled then
-        local bloom = Instance.new("BloomEffect"); bloom.Intensity = 0.8; bloom.Size = 40; bloom.Threshold = 0.7
+        local bloom = Instance.new("BloomEffect")
+        bloom.Intensity = 0.4
+        bloom.Size = 30
+        bloom.Threshold = 0.8
         bloom.Parent = Lighting
-        local cc = Instance.new("ColorCorrectionEffect"); cc.Brightness = 0.05; cc.Contrast = 0.2; cc.Saturation = 0.15
+
+        local cc = Instance.new("ColorCorrectionEffect")
+        cc.Brightness = 0.0
+        cc.Contrast = 0.1
+        cc.Saturation = 0.1
         cc.Parent = Lighting
-        local sr = Instance.new("SunRaysEffect"); sr.Intensity = 0.5; sr.Spread = 0.6
+
+        local sr = Instance.new("SunRaysEffect")
+        sr.Intensity = 0.15
+        sr.Spread = 0.5
         sr.Parent = Lighting
     else
         if BloomEnabled then
-            local bloom = Instance.new("BloomEffect"); bloom.Intensity = BloomIntensity; bloom.Size = BloomSize; bloom.Threshold = BloomThreshold
+            local bloom = Instance.new("BloomEffect")
+            bloom.Intensity = BloomIntensity
+            bloom.Size = BloomSize
+            bloom.Threshold = BloomThreshold
             bloom.Parent = Lighting
         end
+
         if ColorCorrectionEnabled then
-            local cc = Instance.new("ColorCorrectionEffect"); cc.Brightness = CCBrightness; cc.Contrast = CCContrast; cc.Saturation = CCSaturation
+            local cc = Instance.new("ColorCorrectionEffect")
+            cc.Brightness = CCBrightness
+            cc.Contrast = CCContrast
+            cc.Saturation = CCSaturation
             cc.Parent = Lighting
         end
+
         if SunRaysEnabled then
-            local sr = Instance.new("SunRaysEffect"); sr.Intensity = SunRaysIntensity; sr.Spread = SunRaysSpread
+            local sr = Instance.new("SunRaysEffect")
+            sr.Intensity = SunRaysIntensity
+            sr.Spread = SunRaysSpread
             sr.Parent = Lighting
         end
     end
@@ -896,6 +1061,9 @@ local function ApplyTheme()
     local second = Color3.fromRGB(Settings.SecondR, Settings.SecondG, Settings.SecondB)
     local h, s, v = Color3.toHSV(base)
     local gradEnd = Color3.fromHSV(h, s, math.clamp(v - 0.2, 0, 1))
+    
+    AccentColor = base
+    HoverColor = Color3.fromHSV(h, s, math.clamp(v * 1.3, 0, 1))
 
     local gradSeq
     if Settings.GradientEnabled then
@@ -917,11 +1085,18 @@ local function ApplyTheme()
         for i = #list, 1, -1 do
             local obj = list[i]
             if obj and obj.Parent then
-                if isGrad then obj.Color = color
-                elseif obj:IsA("UIStroke") then obj.Color = color
-                elseif obj:IsA("TextLabel") or obj:IsA("TextBox") or obj:IsA("TextButton") then obj.TextColor3 = color
-                elseif obj:IsA("Frame") or obj:IsA("ScrollingFrame") then obj.BackgroundColor3 = color end
-            else table.remove(list, i) end
+                if isGrad then
+                    obj.Color = color
+                elseif obj:IsA("UIStroke") then
+                    obj.Color = color
+                elseif obj:IsA("TextLabel") or obj:IsA("TextBox") or obj:IsA("TextButton") then
+                    obj.TextColor3 = color
+                elseif obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
+                    obj.BackgroundColor3 = color
+                end
+            else
+                table.remove(list, i)
+            end
         end
     end
 
@@ -932,11 +1107,15 @@ local function ApplyTheme()
 
     for i = #ThemeElements.Scrollbars, 1, -1 do
         local obj = ThemeElements.Scrollbars[i]
-        if obj and obj.Parent then obj.ScrollBarImageColor3 = strokeMain else table.remove(ThemeElements.Scrollbars, i) end
+        if obj and obj.Parent then
+            obj.ScrollBarImageColor3 = strokeMain
+        else
+            table.remove(ThemeElements.Scrollbars, i)
+        end
     end
 end
 
--- ====== СОЗДАНИЕ СТРАНИЦ (вкладок) ======
+-- ====== СОЗДАНИЕ СТРАНИЦ ======
 local Pages = {}
 local Buttons = {}
 
@@ -948,7 +1127,7 @@ local function CreatePage(name)
     PageFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     PageFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     PageFrame.ScrollBarThickness = 4
-    PageFrame.ScrollBarImageColor3 = Color3.fromRGB(255,255,255)
+    PageFrame.ScrollBarImageColor3 = AccentColor
     PageFrame.ScrollingEnabled = true
     PageFrame.Visible = false
     table.insert(ThemeElements.Scrollbars, PageFrame)
@@ -968,12 +1147,17 @@ local function CreatePage(name)
     TabButton.TextSize = 13
     TabButton.Font = Enum.Font.GothamMedium
     TabButton.TextXAlignment = Enum.TextXAlignment.Left
-
+    TabButton.MouseEnter:Connect(function()
+        TabButton.TextColor3 = HoverColor
+    end)
+    TabButton.MouseLeave:Connect(function()
+        TabButton.TextColor3 = TextMuted
+    end)
     TabButton.MouseButton1Click:Connect(function()
         for _, p in pairs(Pages) do p.Visible = false end
         for _, b in pairs(Buttons) do b.TextColor3 = TextMuted end
         PageFrame.Visible = true
-        TabButton.TextColor3 = Color3.fromRGB(255,255,255)
+        TabButton.TextColor3 = AccentColor
     end)
 
     Buttons[name] = TabButton
@@ -996,11 +1180,11 @@ UpdateLogLabel.AutomaticSize = Enum.AutomaticSize.Y
 UpdateLogLabel.BackgroundTransparency = 1
 UpdateLogLabel.TextWrapped = true
 UpdateLogLabel.Text = [[
-♥ XD Visuals Hub v2.4 (с вкладками)
-- FOV и Stretch через BindToRenderStep (совместимость с Evade)
-- Полный набор эффектов окружения
-- Сохранение настроек
-- Шестерёнка: кастомизация UI (цвета, градиент)
+♥ XD Visuals Hub v3.0
+- Исправлены SunRays (теперь работают всегда)
+- Lock Time с пресетом Default: плавная смена цветов (утро→день→закат→ночь)
+- Все слайдеры показывают корректные значения
+- RTX стал мягче, не пересвечивает
 ]]
 UpdateLogLabel.TextColor3 = TextColor
 UpdateLogLabel.TextSize = 13
@@ -1017,12 +1201,24 @@ end)
 CreateToggle(SkyPage, "Manual Colors", ManualColorsEnabled, function(val)
     ManualColorsEnabled = val; Settings.ManualColorsEnabled = val; saveState(); applyEnvironmentSettings()
 end)
-CreateSlider(SkyPage, "Sky R", 0, 255, SkyR, function(val) SkyR = val; Settings.SkyR = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
-CreateSlider(SkyPage, "Sky G", 0, 255, SkyG, function(val) SkyG = val; Settings.SkyG = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
-CreateSlider(SkyPage, "Sky B", 0, 255, SkyB, function(val) SkyB = val; Settings.SkyB = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
-CreateSlider(SkyPage, "Horizon R", 0, 255, HorR, function(val) HorR = val; Settings.HorR = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
-CreateSlider(SkyPage, "Horizon G", 0, 255, HorG, function(val) HorG = val; Settings.HorG = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
-CreateSlider(SkyPage, "Horizon B", 0, 255, HorB, function(val) HorB = val; Settings.HorB = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end end)
+CreateSlider(SkyPage, "Sky R", 0, 255, SkyR, function(val)
+    SkyR = val; Settings.SkyR = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end
+end)
+CreateSlider(SkyPage, "Sky G", 0, 255, SkyG, function(val)
+    SkyG = val; Settings.SkyG = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end
+end)
+CreateSlider(SkyPage, "Sky B", 0, 255, SkyB, function(val)
+    SkyB = val; Settings.SkyB = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end
+end)
+CreateSlider(SkyPage, "Horizon R", 0, 255, HorR, function(val)
+    HorR = val; Settings.HorR = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end
+end)
+CreateSlider(SkyPage, "Horizon G", 0, 255, HorG, function(val)
+    HorG = val; Settings.HorG = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end
+end)
+CreateSlider(SkyPage, "Horizon B", 0, 255, HorB, function(val)
+    HorB = val; Settings.HorB = val; saveState(); if not SkyboxEnabled and ManualColorsEnabled then applyEnvironmentSettings() end
+end)
 
 -- === FOG ===
 CreateToggle(FogPage, "Enable Fog", CustomFogEnabled, function(val)
@@ -1053,10 +1249,10 @@ CreateDropdown(PartPage, "Shape", {"Circle","Square","Star"}, FootprintShape, fu
 end)
 CreateSlider(PartPage, "Density", 0.1, 0.5, FootprintDensity, function(val)
     FootprintDensity = val; Settings.FootprintDensity = val; saveState()
-end)
+end, 0.05)
 CreateSlider(PartPage, "Lifetime", 0.5, 2.0, FootprintLifetime, function(val)
     FootprintLifetime = val; Settings.FootprintLifetime = val; saveState()
-end)
+end, 0.1)
 
 -- === PC ===
 CreateToggle(PCPage, "RTX Mode", RTXEnabled, function(val)
@@ -1067,34 +1263,34 @@ CreateToggle(PCPage, "Bloom", BloomEnabled, function(val)
 end)
 CreateSlider(PCPage, "Bloom Intensity", 0, 10, BloomIntensity, function(val)
     BloomIntensity = val; Settings.BloomIntensity = val; saveState(); if BloomEnabled and not RTXEnabled then applyPCEffects() end
-end)
+end, 0.1)
 CreateSlider(PCPage, "Bloom Size", 0, 100, BloomSize, function(val)
     BloomSize = val; Settings.BloomSize = val; saveState(); if BloomEnabled and not RTXEnabled then applyPCEffects() end
-end)
+end, 1)
 CreateSlider(PCPage, "Bloom Threshold", 0, 1, BloomThreshold, function(val)
     BloomThreshold = val; Settings.BloomThreshold = val; saveState(); if BloomEnabled and not RTXEnabled then applyPCEffects() end
-end)
+end, 0.05)
 CreateToggle(PCPage, "Color Correction", ColorCorrectionEnabled, function(val)
     ColorCorrectionEnabled = val; Settings.ColorCorrectionEnabled = val; saveState(); if not RTXEnabled then applyPCEffects() end
 end)
 CreateSlider(PCPage, "CC Brightness", -2, 2, CCBrightness, function(val)
     CCBrightness = val; Settings.CCBrightness = val; saveState(); if ColorCorrectionEnabled and not RTXEnabled then applyPCEffects() end
-end)
+end, 0.1)
 CreateSlider(PCPage, "CC Contrast", -2, 2, CCContrast, function(val)
     CCContrast = val; Settings.CCContrast = val; saveState(); if ColorCorrectionEnabled and not RTXEnabled then applyPCEffects() end
-end)
+end, 0.1)
 CreateSlider(PCPage, "CC Saturation", -2, 2, CCSaturation, function(val)
     CCSaturation = val; Settings.CCSaturation = val; saveState(); if ColorCorrectionEnabled and not RTXEnabled then applyPCEffects() end
-end)
+end, 0.1)
 CreateToggle(PCPage, "Sun Rays", SunRaysEnabled, function(val)
     SunRaysEnabled = val; Settings.SunRaysEnabled = val; saveState(); if not RTXEnabled then applyPCEffects() end
 end)
 CreateSlider(PCPage, "Sun Rays Intensity", 0, 1, SunRaysIntensity, function(val)
     SunRaysIntensity = val; Settings.SunRaysIntensity = val; saveState(); if SunRaysEnabled and not RTXEnabled then applyPCEffects() end
-end)
+end, 0.05)
 CreateSlider(PCPage, "Sun Rays Spread", 0, 1, SunRaysSpread, function(val)
     SunRaysSpread = val; Settings.SunRaysSpread = val; saveState(); if SunRaysEnabled and not RTXEnabled then applyPCEffects() end
-end)
+end, 0.05)
 CreateToggle(PCPage, "Shadows", ShadowsEnabled, function(val)
     ShadowsEnabled = val; Settings.ShadowsEnabled = val; saveState(); applyEnvironmentSettings()
 end)
@@ -1105,27 +1301,27 @@ CreateToggle(WorldPage, "Lock Time", WorldTimeLock, function(val)
 end)
 CreateSlider(WorldPage, "Time (0-24)", 0, 24, WorldTimeValue, function(val)
     WorldTimeValue = val; Settings.WorldTimeValue = val; saveState(); if WorldTimeLock then Lighting.ClockTime = val end
-end)
+end, 0.5)
 CreateSlider(WorldPage, "Brightness", 0, 5, WorldBrightness, function(val)
-    WorldBrightness = val; Settings.WorldBrightness = val; saveState(); if not SkyboxEnabled and not ManualColorsEnabled then Lighting.Brightness = val end
-end)
+    WorldBrightness = val; Settings.WorldBrightness = val; saveState(); if not SkyboxEnabled and not ManualColorsEnabled and not (WorldTimeLock and not SkyboxEnabled) then Lighting.Brightness = val end
+end, 0.1)
 CreateSlider(WorldPage, "Exposure", -2, 2, WorldExposure, function(val)
-    WorldExposure = val; Settings.WorldExposure = val; saveState(); if not SkyboxEnabled and not ManualColorsEnabled then Lighting.ExposureCompensation = val end
-end)
+    WorldExposure = val; Settings.WorldExposure = val; saveState(); if not SkyboxEnabled and not ManualColorsEnabled and not (WorldTimeLock and not SkyboxEnabled) then Lighting.ExposureCompensation = val end
+end, 0.1)
 CreateToggle(WorldPage, "Auto Cycle", AutoTimeCycleEnabled, function(val)
     AutoTimeCycleEnabled = val; Settings.AutoTimeCycleEnabled = val; saveState()
 end)
 CreateSlider(WorldPage, "Cycle Speed", 0.1, 10.0, TimeCycleSpeed, function(val)
     TimeCycleSpeed = val; Settings.TimeCycleSpeed = val; saveState()
-end)
+end, 0.1)
 
--- === GAME (FOV, Stretch) ===
+-- === GAME ===
 CreateToggle(GamePage, "Enable FOV", FOVEnabled, function(val)
     FOVEnabled = val; Settings.FOVEnabled = val; saveState()
 end)
 CreateSlider(GamePage, "FOV", 30, 200, FOV, function(val)
     FOV = val; Settings.FOV = val; saveState()
-end)
+end, 1)
 CreateToggle(GamePage, "Enable Stretch", StretchEnabled, function(val)
     StretchEnabled = val; Settings.StretchEnabled = val; saveState()
 end)
@@ -1134,11 +1330,10 @@ CreateDropdown(GamePage, "Aspect Ratio", {"16:9 (Default)","16:10","4:3","5:4","
 end)
 CreateSlider(GamePage, "Custom Scale (%)", 30, 150, StretchCustom, function(val)
     StretchCustom = val; Settings.StretchCustom = val; saveState()
-end)
+end, 1)
 
 -- ====== НАСТРОЙКИ UI (шестерёнка) ======
 local function CreateUIControls()
-    -- === UI Theme ===
     local label = Instance.new("TextLabel", SettingsOverlay)
     label.Size = UDim2.new(0, 350, 0, 20)
     label.BackgroundTransparency = 1
@@ -1170,6 +1365,12 @@ local function CreateUIControls()
     resetBtn.TextSize = 12
     resetBtn.Font = Enum.Font.GothamBold
     Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 6)
+    resetBtn.MouseEnter:Connect(function()
+        resetBtn.BackgroundColor3 = HoverColor
+    end)
+    resetBtn.MouseLeave:Connect(function()
+        resetBtn.BackgroundColor3 = BgElement
+    end)
     resetBtn.MouseButton1Click:Connect(function()
         Settings.AccentR = 255; Settings.AccentG = 255; Settings.AccentB = 255
         Settings.GradientEnabled = false
@@ -1182,9 +1383,20 @@ CreateUIControls()
 
 -- ====== ЗАПУСК ======
 Pages["Update Log"].Visible = true
-Buttons["Update Log"].TextColor3 = Color3.fromRGB(255,255,255)
+Buttons["Update Log"].TextColor3 = AccentColor
 ApplyTheme()
 applyEnvironmentSettings()
 applyPCEffects()
 startShaderWatchdog()
 StartAutoTimeCycle()
+
+-- ====== БЕЗОПАСНОЕ ОТКЛЮЧЕНИЕ ======
+ScreenGui.AncestryChanged:Connect(function()
+    if not ScreenGui.Parent then
+        for _, conn in ipairs(connections) do
+            if conn then
+                pcall(function() conn:Disconnect() end)
+            end
+        end
+    end
+end)
